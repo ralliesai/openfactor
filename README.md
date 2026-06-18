@@ -229,30 +229,57 @@ sector, and industry factors are ticker-level exposures.
 
 ## Model Methodology
 
-OpenFactor separates exposures from factor returns.
+OpenFactor separates **exposures** (how much each stock loads on a factor) from
+**factor returns** (what each factor earned), and estimates both with no
+look-ahead.
 
-Exposures are computed from current price history, market data,
-point-in-time fundamentals, estimates, analyst data, sector, and industry
-classification. Scalar exposures are winsorized and standardized
-cross-sectionally. Sector and industry exposures remain categorical.
+### Exposures
 
-Factor returns are estimated from a Barra-style cross-sectional model:
+Exposures are built from price history, market data, point-in-time fundamentals,
+forward estimates, analyst data, and sector/industry classification. Each scalar
+exposure is winsorized around the cross-sectional median (MAD-based, so a handful
+of outliers can't dominate) and then standardized into a z-score, making factors
+comparable across the universe. Sector and industry exposures stay categorical.
+
+Exposures for a given day use only information known *before* that day's return:
+prices through the prior close, and the fundamentals and estimates effective as
+of that date. Nothing from the future leaks in.
+
+### Factor returns
+
+Each day, factor returns come from a single Barra-style cross-sectional
+regression of stock returns on exposures:
 
 ```text
 stock return = market + sector + industry + style factors + residual
 ```
 
-The return model uses:
+The fit is built to be robust:
 
-- winsorized stock returns
-- market-cap weighted regression
-- explicit market, sector, broad industry, and style factors
-- sector constraints
-- residual volatility for stock-specific risk
+- **Market-cap weighted (WLS)** — large, liquid names anchor the regression
+  instead of microcaps.
+- **Sector returns constrained to a cap-weighted sum of zero**, with the market
+  factor absorbing the shift — sector returns read as clean tilts relative to the
+  market, and the market factor carries the broad move.
+- **Winsorized stock returns** — a single name's blow-up day can't distort the
+  estimates.
+- **Explicit market, sector, broad-industry, and style factors**, with
+  thinly-populated industries folded out of the cross-section.
+- **Rolling and point-in-time** — re-run each day on that day's as-of exposures,
+  producing a clean daily history of factor returns and per-stock residuals.
 
-Risk attribution combines portfolio factor exposures with the factor covariance
-matrix. Stock-specific risk is estimated from residual returns and combined with
-factor risk at the portfolio level.
+The residuals are what remains after every common factor, and they drive
+stock-specific risk.
+
+### Risk
+
+Factor covariance and stock-specific risk are estimated from this factor-return
+and residual history. The current version uses simpler estimators here; more
+advanced covariance and specific-risk methods are on the near-term roadmap.
+
+Risk attribution then combines portfolio factor exposures with the factor
+covariance matrix, and adds stock-specific risk at the portfolio level to give
+factor, specific, and total risk.
 
 ## Python Usage
 
