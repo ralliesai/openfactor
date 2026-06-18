@@ -20,6 +20,7 @@ from data.build.quality import validate_snapshot
 from data.publish.r2 import R2Client
 
 
+LOGGER = logging.getLogger("openfactor.publish")
 DEFAULT_LIMIT = 1000
 PUBLIC_FILES = [
     "exposures.csv",
