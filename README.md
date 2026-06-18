@@ -163,7 +163,7 @@ stock-specific risk, and total risk without direct access to vendor data.
       <td>Forward revenue and earnings growth</td>
     </tr>
     <tr>
-      <td rowspan="6"><strong>Quality</strong></td>
+      <td rowspan="5"><strong>Quality</strong></td>
       <td>Profitability</td>
       <td><code>profitability</code></td>
       <td>Net income divided by assets</td>
@@ -186,12 +186,7 @@ stock-specific risk, and total risk without direct access to vendor data.
     <tr>
       <td>Capital Discipline</td>
       <td><code>investment_quality</code></td>
-      <td>Asset growth, capex, buyback, and issuance quality</td>
-    </tr>
-    <tr>
-      <td>Management Quality</td>
-      <td><code>management_quality</code></td>
-      <td>Asset growth, capex growth, and issuance discipline</td>
+      <td>Low asset growth, low capex intensity, buybacks, and low issuance</td>
     </tr>
     <tr>
       <td rowspan="2"><strong>Balance Sheet</strong></td>
@@ -238,8 +233,8 @@ look-ahead.
 Exposures are built from price history, market data, point-in-time fundamentals,
 forward estimates, analyst data, and sector/industry classification. Each scalar
 exposure is winsorized around the cross-sectional median (MAD-based, so a handful
-of outliers can't dominate) and then standardized into a z-score, making factors
-comparable across the universe. Sector and industry exposures stay categorical.
+of outliers can't dominate) and then standardized with market-cap weights when
+market caps are available. Sector and industry exposures stay categorical.
 
 Exposures for a given day use only information known *before* that day's return:
 prices through the prior close, and the fundamentals and estimates effective as
@@ -273,9 +268,8 @@ stock-specific risk.
 
 ### Risk
 
-Factor covariance and stock-specific risk are estimated from this factor-return
-and residual history. The current version uses simpler estimators here; more
-advanced covariance and specific-risk methods are on the near-term roadmap.
+Factor covariance is the annualized covariance of recent factor returns.
+Stock-specific risk is annualized residual volatility.
 
 Risk attribution then combines portfolio factor exposures with the factor
 covariance matrix, and adds stock-specific risk at the portfolio level to give

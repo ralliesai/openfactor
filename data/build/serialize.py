@@ -39,7 +39,6 @@ FUNDAMENTAL_COLUMNS = [
     "buybacks",
     "share_issuance",
     "investment_quality",
-    "management_quality",
     "earnings_quality",
     "earnings_variability",
     "short_interest",

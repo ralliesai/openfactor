@@ -133,7 +133,10 @@ class DatasetBuilder:
             result_from_ready_inputs(matrix, prices, reference, fundamentals)
             computes exposures, factor returns, covariance, and specific risk.
         """
-        exposures = normalize_exposures(self.compute_exposures(matrix, current_reference))
+        exposures = normalize_exposures(
+            self.compute_exposures(matrix, current_reference),
+            self.market_cap_weights(current_reference),
+        )
         factor_returns, residuals = factor_model_history(
             matrix,
             exposures,
@@ -244,6 +247,14 @@ class DatasetBuilder:
             return reference
         reference = reference.drop(columns=["market_cap"], errors="ignore")
         return reference.merge(sec_reference, on="ticker", how="left")
+
+    def market_cap_weights(self, reference):
+        """Return market-cap weights indexed by ticker.
+
+        Example:
+            AAPL market_cap becomes the normalization weight for AAPL exposures.
+        """
+        return reference.drop_duplicates("ticker").set_index("ticker")["market_cap"]
 
     def reference_file(self, reference):
         """Return the current reference columns published for audits.

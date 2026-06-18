@@ -34,7 +34,6 @@ FACTOR_DISPLAY_NAMES = {
     "leverage": "Leverage",
     "investment": "Asset Growth",
     "investment_quality": "Capital Discipline",
-    "management_quality": "Management Quality",
     "earnings_quality": "Earnings Quality",
     "earnings_variability": "Earnings Variability",
     "short_interest": "Short Interest",

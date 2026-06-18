@@ -38,7 +38,6 @@ def add_factor_inputs(
         how="left",
     )
     frame["investment_quality"] = investment_quality(frame)
-    frame["management_quality"] = management_quality(frame)
     frame = merge_forward_inputs(frame, forward)
     frame = merge_forward_inputs(frame, forward_estimate_inputs(frame, analyst_estimates))
     frame = frame[frame["as_of_date"].isin(keep_dates)].copy()
@@ -105,7 +104,6 @@ DERIVED_COLUMNS = [
     "earnings_quality",
     "earnings_variability",
     "investment_quality",
-    "management_quality",
     "forward_earnings_yield",
     "forward_earnings_yield_observations",
     "forward_growth",
@@ -474,40 +472,6 @@ def investment_quality(frame):
     values -= safe_ratio(numeric(frame, "share_issuance"), market_cap)
     values[~np.isfinite(numeric(frame, "asset_growth"))] = np.nan
     return values
-
-
-def management_quality(frame):
-    """Return low-investment, low-issuance management-quality input.
-
-    Example:
-        low asset growth, low capex growth, and low issuance growth score higher.
-    """
-    values = pd.Series(np.nan, index=frame.index, dtype=float)
-    for _, group in frame.groupby("ticker"):
-        group = group.sort_values("as_of_date")
-        for index, row in group.iterrows():
-            prior = group[group["as_of_date"] <= year_ago(row["as_of_date"])].tail(1)
-            prior = None if prior.empty else prior.iloc[0]
-            values.loc[index] = -average_finite(
-                [
-                    row.get("asset_growth"),
-                    np.nan if prior is None else ratio_growth(row, prior, "capex"),
-                    np.nan if prior is None else ratio_growth(row, prior, "share_issuance"),
-                    safe_divide(number(row.get("capex")), number(row.get("total_assets"))),
-                ]
-            )
-    return values
-
-
-def average_finite(values):
-    """Return the average of finite values.
-
-    Example:
-        average_finite([1, nan, 3]) returns 2.
-    """
-    values = [number(value) for value in values]
-    values = [value for value in values if np.isfinite(value)]
-    return np.nan if not values else float(np.mean(values))
 
 
 def clean_dates_frame(frame, date_column):

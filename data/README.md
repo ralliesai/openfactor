@@ -2,9 +2,12 @@
 
 This folder contains the code that builds OpenFactor model datasets.
 
-OpenFactor runs a scheduled daily job that refreshes the public model files for
-the latest trading date. The installed `openfactor` package does not run this
-pipeline; it reads the published model through `openfactor.load_snapshot()`.
+OpenFactor runs a scheduled job once per US trading day, after the market close,
+to refresh the public model files for the latest trading date. The published
+model is a small set of plain-text CSV/JSON files for a ~1000-name universe, so
+it is cheap to host and fast to download. The installed `openfactor` package does
+not run this pipeline; it reads the published model through
+`openfactor.load_snapshot()`.
 
 ## Daily Flow
 
@@ -45,9 +48,41 @@ Latest pointer:
 
 ## Private Inputs
 
+OpenFactor is open **code** and open **model outputs**, not open **data**. The
+published factor files are free to use and the full pipeline source lives in this
+repo, but the model is not reproducible end-to-end from this repo alone: the raw
+inputs are licensed from paid providers and are not redistributed.
+
 Raw pricing, fundamentals, provider responses, and operational credentials are
 not part of the public runtime package. They are used only by the scheduled data
 pipeline to produce the public model files.
+
+## Credentials
+
+Running the pipeline pulls from paid third-party data providers and publishes to
+Cloudflare R2, so it needs API keys. The package reads them from the process
+environment (`os.getenv`), so export them before running — a common pattern is a
+gitignored `.env` at the repo root loaded with `direnv` or `set -a; source .env;
+set +a`:
+
+```bash
+# Data providers (paid keys)
+OPENFACTOR_MASSIVE_API_KEY=...      # prices and market data
+OPENFACTOR_SEC_API_KEY=...          # point-in-time SEC fundamentals
+OPENFACTOR_FINNHUB_API_KEY=...      # reported financials
+OPENFACTOR_FMP_API_KEY=...          # forward estimates
+OPENFACTOR_TIPRANKS_API_KEY=...     # analyst data
+OPENFACTOR_TIPRANKS_API_TOKEN=...
+
+# Publishing target (Cloudflare R2)
+OPENFACTOR_R2_ACCOUNT_ID=...
+OPENFACTOR_R2_ACCESS_KEY_ID=...
+OPENFACTOR_R2_SECRET_ACCESS_KEY=...
+```
+
+Building a model needs the provider keys; publishing also needs the R2
+credentials. Without them, `DatasetBuilder` and the publish commands fail fast
+with a missing-credential error.
 
 ## Custom Datasets
 
@@ -57,7 +92,7 @@ your own storage, universe name, or universe size.
 The built-in US publisher accepts the main dataset controls:
 
 ```bash
-python3.10 -m data.publish.us \
+python -m data.publish.us \
   --universe-name my-us500 \
   --limit 500 \
   --public-bucket my-openfactor-public \
@@ -103,4 +138,4 @@ publish/    storage publishing
 ---
 
 For private input access to verify the public model files, email
-[faizann288@gmail.com](mailto:faizann288@gmail.com).
+[support@rallies.ai](mailto:support@rallies.ai).

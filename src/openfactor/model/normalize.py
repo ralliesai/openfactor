@@ -25,11 +25,12 @@ def winsorize(values, limit=3.0):
     return np.clip(values, center - limit * scale, center + limit * scale)
 
 
-def standardize(values):
+def standardize(values, weights=None):
     """Turn values into cross-sectional z-scores.
 
     Example:
-        standardize([1.0, 2.0, 3.0]) returns roughly [-1.22, 0.0, 1.22].
+        weights=None uses equal-weight mean and volatility.
+        weights=[90, 10] uses cap-weighted mean and volatility.
     """
     values = np.asarray(values, dtype=float).copy()
     good = np.isfinite(values)
@@ -37,20 +38,31 @@ def standardize(values):
         values[good] = 0.0
         return values
 
-    scale = values[good].std()
+    if weights is None:
+        center = values[good].mean()
+        scale = values[good].std()
+    else:
+        weights = np.asarray(weights, dtype=float)
+        fit = good & np.isfinite(weights) & (weights > 0)
+        if fit.sum() < 2:
+            return standardize(values)
+        weights = weights[fit] / weights[fit].sum()
+        center = (values[fit] * weights).sum()
+        scale = np.sqrt(((values[fit] - center) ** 2 * weights).sum())
+
     if scale == 0:
         values[good] = 0.0
     else:
-        values[good] = (values[good] - values[good].mean()) / scale
+        values[good] = (values[good] - center) / scale
     return values
 
 
-def normalize_exposures(exposures, limit=3.0):
+def normalize_exposures(exposures, weights=None, limit=3.0):
     """Winsorize and standardize scalar factor exposures.
 
     Example:
         beta values [1.0, 2.0, 100.0]
-        become model-ready z-scores, with raw_value preserved.
+        become model-ready exposures, with raw_value preserved.
     """
     require_columns(exposures, ["ticker", "factor", "group", "value"])
     frame = exposures.copy()
@@ -59,6 +71,7 @@ def normalize_exposures(exposures, limit=3.0):
     else:
         frame["raw_value"] = frame["raw_value"].fillna(frame["value"])
 
+    weights = exposure_weights(frame, weights)
     for factor in frame["factor"].unique():
         rows = frame["factor"] == factor
         group = frame.loc[rows, "group"].iloc[0]
@@ -66,6 +79,23 @@ def normalize_exposures(exposures, limit=3.0):
             continue
 
         raw = frame.loc[rows, "raw_value"]
-        frame.loc[rows, "value"] = standardize(winsorize(raw, limit))
+        factor_weights = None if weights is None else weights[rows]
+        frame.loc[rows, "value"] = standardize(winsorize(raw, limit), factor_weights)
 
     return frame
+
+
+def exposure_weights(exposures, weights):
+    """Return one numeric weight per exposure row.
+
+    Example:
+        ticker-indexed market caps become exposure-row weights.
+    """
+    if weights is None:
+        return None
+    if hasattr(weights, "set_index"):
+        weights = weights.set_index("ticker")["market_cap"]
+    weights = weights.copy()
+    weights.index = weights.index.astype(str)
+    weights = weights.reindex(exposures["ticker"].astype(str))
+    return weights.to_numpy(dtype=float)

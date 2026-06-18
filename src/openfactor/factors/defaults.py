@@ -18,7 +18,6 @@ from openfactor.factors.reference.investment import compute as investment
 from openfactor.factors.reference.investment_quality import compute as investment_quality
 from openfactor.factors.reference.leverage import compute as leverage
 from openfactor.factors.reference.growth import compute as growth
-from openfactor.factors.reference.management_quality import compute as management_quality
 from openfactor.factors.reference.mid_cap import compute as mid_cap
 from openfactor.factors.reference.profitability import compute as profitability
 from openfactor.factors.reference.sector import compute as sector
@@ -128,12 +127,6 @@ def default_reference_factors():
             "reference",
             "Asset growth, capex, buyback, and issuance quality.",
             investment_quality,
-        ),
-        Factor(
-            "management_quality",
-            "reference",
-            "Low asset growth, low capex growth, and low issuance growth.",
-            management_quality,
         ),
         Factor(
             "earnings_quality",

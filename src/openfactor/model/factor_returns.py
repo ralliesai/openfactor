@@ -50,7 +50,8 @@ def rolling_exposures(
         frames += [factor.compute(rows, date) for factor in reference_factors]
         if static_exposures is not None and not static_exposures.empty:
             frames.append(static_exposures)
-    return normalize_exposures(pd.concat(frames, ignore_index=True))
+    weights = None if reference_history is None else market_cap_weights(rows)
+    return normalize_exposures(pd.concat(frames, ignore_index=True), weights)
 
 
 def common_exposure_matrix(exposures, tickers, min_group_members=5):
@@ -98,6 +99,17 @@ def market_caps_for(reference_history, date, tickers):
     rows = reference_history[reference_history["as_of_date"].astype(str) == str(date)]
     caps = rows.drop_duplicates("ticker").set_index("ticker")["market_cap"]
     return caps.reindex(tickers).to_numpy(dtype=float)
+
+
+def market_cap_weights(reference):
+    """Return market-cap weights indexed by ticker.
+
+    Example:
+        ticker rows with market_cap become normalization weights.
+    """
+    if reference is None or reference.empty or "market_cap" not in reference:
+        return None
+    return reference.drop_duplicates("ticker").set_index("ticker")["market_cap"]
 
 
 def weighted_lstsq(x, y, weights):
