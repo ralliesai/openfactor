@@ -167,8 +167,13 @@ class DatasetBuilder:
         finally:
             client.close()
 
-        reference = self.downloader.reference(candidates, self.as_of_date)
+        reference = self.downloader.reference(candidates, self.as_of_date, min_coverage=0.80)
         tickers = top_market_cap_tickers(reference, self.universe_limit)
+        if len(tickers) < self.universe_limit:
+            raise ValueError(
+                f"universe selected {len(tickers)} "
+                f"below requested {self.universe_limit}"
+            )
         LOGGER.info(
             "universe=%s candidates=%s selected=%s",
             self.universe_name,

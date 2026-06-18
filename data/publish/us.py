@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import dataclass
 from io import BytesIO
+import logging
 from pathlib import Path
 import sys
 import urllib.error
@@ -240,6 +241,7 @@ def main():
         python3.10 -m data.publish.us
         publishes openfactor-us1000 unless it already exists.
     """
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     args = parse_args()
     UsPublisher(
         UsConfig(

@@ -20,6 +20,7 @@ from data.sec.history import SEC_TICKER_ALIAS, fetch_daily_rows
 
 
 LOGGER = logging.getLogger("openfactor.factory")
+REQUIRED_COVERAGE = 0.95
 
 
 @dataclass(frozen=True)
@@ -48,10 +49,9 @@ class ProviderDownloader:
             lambda ticker: self.price_rows(ticker, start_date, end_date),
             self.workers,
         )
-        self.log_missing(rows, "prices")
-        return self.concat_or_raise([frame for _, frame in rows], "no usable price rows")
+        return self.required_table(rows, "prices", REQUIRED_COVERAGE, "no usable price rows")
 
-    def reference(self, tickers, as_of_date):
+    def reference(self, tickers, as_of_date, min_coverage=REQUIRED_COVERAGE):
         """Download market reference rows from Massive.
 
         Example:
@@ -64,8 +64,7 @@ class ProviderDownloader:
             lambda ticker: self.reference_row(ticker, as_of_date),
             self.workers,
         )
-        self.log_missing(rows, "reference")
-        return self.clean_reference(self.concat_or_raise([frame for _, frame in rows], "no reference rows"))
+        return self.clean_reference(self.required_table(rows, "reference", min_coverage, "no reference rows"))
 
     def dividends(self, tickers, start_date, end_date):
         """Download cash dividend rows from Massive.
@@ -80,7 +79,7 @@ class ProviderDownloader:
             lambda ticker: self.dividend_rows(ticker, start_date, end_date),
             self.workers,
         )
-        self.log_missing(rows, "dividends")
+        self.log_report(rows, "dividends")
         return self.concat_or_empty([frame for _, frame in rows])
 
     def short_interest(self, tickers, start_date, end_date):
@@ -96,7 +95,7 @@ class ProviderDownloader:
             lambda ticker: self.short_interest_rows(ticker, start_date, end_date),
             self.workers,
         )
-        self.log_missing(rows, "short interest")
+        self.log_report(rows, "short interest")
         return self.concat_or_empty([frame for _, frame in rows])
 
     def finnhub_reported(self, tickers):
@@ -112,7 +111,7 @@ class ProviderDownloader:
             1,
             progress_every=10,
         )
-        self.log_missing(rows, "Finnhub reported financials")
+        self.log_report(rows, "Finnhub reported financials")
         return self.concat_or_empty([frame for _, frame in rows])
 
     def analyst_ratings(self, tickers):
@@ -128,7 +127,7 @@ class ProviderDownloader:
             1,
             progress_every=10,
         )
-        self.log_missing(rows, "TipRanks analyst ratings")
+        self.log_report(rows, "TipRanks analyst ratings")
         return self.concat_or_empty([frame for _, frame in rows])
 
     def analyst_estimates(self, tickers):
@@ -144,7 +143,7 @@ class ProviderDownloader:
             1,
             progress_every=10,
         )
-        self.log_missing(rows, "FMP analyst estimates")
+        self.log_report(rows, "FMP analyst estimates")
         return self.concat_or_empty([frame for _, frame in rows])
 
     def sec_history(self, tickers, dates):
@@ -162,7 +161,7 @@ class ProviderDownloader:
             self.sec_workers,
             progress_every=10,
         )
-        self.log_missing(rows, "SEC daily")
+        self.log_report(rows, "SEC daily")
         frame = self.concat_or_empty([frame for _, frame in rows])
         if frame.empty:
             raise ValueError("no SEC daily rows")
@@ -207,9 +206,19 @@ class ProviderDownloader:
             progress = tqdm(completed, total=len(items), desc=label, unit="ticker")
             for done, future in enumerate(progress, start=1):
                 item = futures[future]
-                results.append((item, future.result()))
+                try:
+                    frame = future.result()
+                except Exception as error:
+                    frame = error_frame(error)
+                results.append((item, frame))
                 if done == len(items) or done % progress_every == 0:
-                    LOGGER.info("%s progress=%s/%s", label, done, len(items))
+                    LOGGER.info(
+                        "%s progress=%s/%s errors=%s",
+                        label,
+                        done,
+                        len(items),
+                        len(self.download_errors(results)),
+                    )
 
         LOGGER.info("%s finished", label)
         return results
@@ -312,15 +321,47 @@ class ProviderDownloader:
         frame["market_cap"] = pd.to_numeric(frame["market_cap"], errors="coerce")
         return frame[["ticker", "market_cap"]].drop_duplicates("ticker", keep="last")
 
-    def log_missing(self, rows, label):
-        """Log optional ticker rows that were skipped.
+    def required_table(self, rows, label, min_coverage, message):
+        """Return a required batch or raise after all tickers finish.
 
         Example:
-            two empty optional price frames logs prices skipped=2.
+            95 usable price rows out of 100 passes at 95% coverage.
+        """
+        self.log_report(rows, label)
+        frame = self.concat_or_empty([frame for _, frame in rows])
+        if frame.empty:
+            raise ValueError(message)
+
+        usable = len(rows) - len(self.missing_tickers(rows))
+        coverage = usable / len(rows) if rows else 0
+        if coverage < min_coverage:
+            raise ValueError(
+                f"{label} coverage {usable}/{len(rows)} "
+                f"below required {min_coverage:.0%}"
+            )
+        return frame
+
+    def log_report(self, rows, label):
+        """Log one completed provider batch.
+
+        Example:
+            one timeout in 100 rows logs errors=1 and a small sample.
         """
         missing = self.missing_tickers(rows)
+        errors = self.download_errors(rows)
+        LOGGER.info(
+            "%s summary total=%s usable=%s missing=%s errors=%s",
+            label,
+            len(rows),
+            len(rows) - len(missing),
+            len(missing),
+            len(errors),
+        )
         if missing:
-            LOGGER.info("%s skipped=%s", label, len(missing))
+            LOGGER.info("%s missing_sample=%s", label, ", ".join(missing[:10]))
+        if errors:
+            sample = "; ".join(f"{ticker}: {error}" for ticker, error in errors[:5])
+            LOGGER.warning("%s error_sample=%s", label, sample)
 
     def missing_tickers(self, rows):
         """Return tickers with no usable frame.
@@ -330,16 +371,17 @@ class ProviderDownloader:
         """
         return [ticker for ticker, frame in rows if frame is None or frame.empty]
 
-    def concat_or_raise(self, frames, message):
-        """Concatenate frames or raise a clear error.
+    def download_errors(self, rows):
+        """Return per-ticker provider errors.
 
         Example:
-            downloader.concat_or_raise([], "missing") raises ValueError("missing").
+            an empty frame with download_error becomes one error row.
         """
-        frame = self.concat_or_empty(frames)
-        if frame.empty:
-            raise ValueError(message)
-        return frame
+        return [
+            (ticker, frame.attrs["download_error"])
+            for ticker, frame in rows
+            if frame is not None and "download_error" in frame.attrs
+        ]
 
     def concat_or_empty(self, frames):
         """Concatenate frames or return an empty DataFrame.
@@ -354,6 +396,28 @@ class ProviderDownloader:
         columns = list(dict.fromkeys(column for frame in frames for column in frame.columns))
         trimmed = [frame.dropna(axis=1, how="all") for frame in frames]
         return pd.concat(trimmed, ignore_index=True).reindex(columns=columns)
+
+
+def error_frame(error):
+    """Return an empty frame tagged with one provider error.
+
+    Example:
+        a ReadTimeout becomes a missing ticker instead of killing the batch.
+    """
+    frame = pd.DataFrame()
+    frame.attrs["download_error"] = clean_error(error)
+    return frame
+
+
+def clean_error(error):
+    """Return a short provider error without query strings.
+
+    Example:
+        RuntimeError with a provider URL keeps only the URL path.
+    """
+    message = str(error).split("?", 1)[0]
+    return f"{type(error).__name__}: {message}"
+
 
 def three_year_start(today):
     """Return the start date for three years of daily prices.
