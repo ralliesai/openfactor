@@ -78,6 +78,12 @@ class UsPublisher:
             print(f"skip as_of_date={self.config.as_of_date} reason=already_published")
             return None
 
+        LOGGER.info(
+            "publish run started as_of_date=%s universe=%s limit=%s",
+            self.config.as_of_date,
+            self.universe_name(),
+            self.config.limit,
+        )
         result = DatasetBuilder(
             as_of_date=self.config.as_of_date,
             universe_limit=self.config.limit,
@@ -87,7 +93,9 @@ class UsPublisher:
             downloader=self.downloader,
             previous_fundamentals=self.previous_fundamentals(),
         ).build()
+        LOGGER.info("validating snapshot")
         validate_snapshot(result.snapshot)
+        LOGGER.info("validation finished")
         publish_dataset(
             result,
             self.config.public_bucket,

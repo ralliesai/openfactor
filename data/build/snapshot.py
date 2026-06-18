@@ -98,13 +98,26 @@ class DatasetBuilder:
             DatasetBuilder(tickers=["AAPL"], universe_name="sample").build()
             returns a BuildResult for that one-ticker universe.
         """
+        LOGGER.info(
+            "build started as_of_date=%s universe=%s limit=%s",
+            self.as_of_date,
+            self.universe_name,
+            self.universe_limit,
+        )
         start_date = price_start_date(self.as_of_date)
         tickers = self.tickers or self.model_universe()
         prices = self.downloader.prices(tickers, start_date, self.as_of_date)
         matrix = price_matrix(prices, require_volume=True)
+        LOGGER.info(
+            "prices ready rows=%s tickers=%s dates=%s",
+            len(prices),
+            len(matrix.tickers),
+            len(matrix.dates),
+        )
         model_dates = self.reference_dates(matrix)
         sec_dates = self.sec_dates(model_dates)
         reference = self.downloader.reference(matrix.tickers, self.as_of_date)
+        LOGGER.info("reference ready rows=%s", len(reference))
         fundamentals = FundamentalHistory(
             self.downloader,
             self.previous_fundamentals,
@@ -120,6 +133,11 @@ class DatasetBuilder:
             self.downloader.analyst_estimates(matrix.tickers),
             sec_dates,
         )
+        LOGGER.info(
+            "factor inputs ready rows=%s columns=%s",
+            len(fundamentals),
+            len(fundamentals.columns),
+        )
         current_reference = self.merge_reference(
             reference,
             self.reference_as_of(fundamentals, matrix.dates[-1]),
@@ -133,16 +151,31 @@ class DatasetBuilder:
             result_from_ready_inputs(matrix, prices, reference, fundamentals)
             computes exposures, factor returns, covariance, and specific risk.
         """
+        LOGGER.info("computing current exposures")
         exposures = normalize_exposures(
             self.compute_exposures(matrix, current_reference),
             self.market_cap_weights(current_reference),
         )
+        LOGGER.info(
+            "current exposures rows=%s factors=%s",
+            len(exposures),
+            exposures["factor"].nunique(),
+        )
+        LOGGER.info("estimating factor returns window=%s", RISK_WINDOW)
         factor_returns, residuals = factor_model_history(
             matrix,
             exposures,
             window=RISK_WINDOW,
             reference_history=fundamentals,
+            progress_label="factor returns",
         )
+        LOGGER.info(
+            "factor returns ready rows=%s factors=%s residual_rows=%s",
+            len(factor_returns),
+            len(factor_returns.columns),
+            len(residuals),
+        )
+        LOGGER.info("building risk snapshot")
         snapshot = Snapshot(
             as_of_date=str(matrix.dates[-1]),
             universe_name=self.universe_name,
@@ -152,6 +185,12 @@ class DatasetBuilder:
             specific_risk=specific_risk_from_residuals(residuals),
             universe=self.universe_frame(matrix.tickers, matrix.dates[-1]),
             metadata=self.metadata(matrix, prices, factor_returns, metadata),
+        )
+        LOGGER.info(
+            "snapshot ready as_of_date=%s tickers=%s factors=%s",
+            snapshot.as_of_date,
+            len(snapshot.universe),
+            len(snapshot.factor_returns.columns),
         )
         return BuildResult(snapshot, prices, self.reference_file(current_reference), fundamentals)
 
@@ -336,6 +375,7 @@ def publish_dataset(result, public_bucket, private_bucket, r2=None):
     snapshot = result.snapshot
     dated = f"factors/{snapshot.universe_name}/date={snapshot.as_of_date}"
     latest = f"factors/{snapshot.universe_name}/latest"
+    LOGGER.info("publish public started bucket=%s", public_bucket)
     upload_snapshot_files(r2, public_bucket, dated, snapshot)
     upload_snapshot_files(r2, public_bucket, latest, snapshot)
     r2.upload_text(
@@ -350,7 +390,10 @@ def publish_dataset(result, public_bucket, private_bucket, r2=None):
         f"factors/{snapshot.universe_name}/latest.json",
         "application/json; charset=utf-8",
     )
+    LOGGER.info("publish public finished")
+    LOGGER.info("publish private started bucket=%s", private_bucket)
     for folder, frame, filename in private_tables(result):
+        LOGGER.info("publish private table=%s file=%s rows=%s", folder, filename, len(frame))
         text = spreadsheet_csv(frame)
         r2.upload_text(
             text,
@@ -364,6 +407,7 @@ def publish_dataset(result, public_bucket, private_bucket, r2=None):
             f"inputs/{snapshot.universe_name}/{folder}/latest/{filename}",
             "text/csv; charset=utf-8",
         )
+    LOGGER.info("publish private finished")
 
 
 def upload_snapshot_files(r2, bucket, prefix, snapshot):

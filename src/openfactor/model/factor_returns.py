@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from openfactor.core.matrix import PriceMatrix
 from openfactor.factors.defaults import default_price_factors, default_reference_factors
@@ -199,6 +200,7 @@ def factor_model_history(
     price_factors=None,
     reference_history=None,
     reference_factors=None,
+    progress_label=None,
 ):
     """Estimate daily factor returns and stock residuals.
 
@@ -217,7 +219,11 @@ def factor_model_history(
 
     factor_rows = []
     residual_rows = []
-    for row in range(start, len(matrix.returns)):
+    rows = range(start, len(matrix.returns))
+    if progress_label:
+        rows = tqdm(rows, desc=progress_label, unit="day", dynamic_ncols=True)
+
+    for row in rows:
         daily_exposures = rolling_exposures(
             matrix,
             static,
