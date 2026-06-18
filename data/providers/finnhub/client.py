@@ -1,9 +1,14 @@
 import os
+import threading
+import time
 
 import requests
 
 
 BASE_URL = "https://finnhub.io/api/v1"
+SECONDS_BETWEEN_REQUESTS = float(os.getenv("OPENFACTOR_FINNHUB_SLEEP", "1"))
+RATE_LOCK = threading.Lock()
+NEXT_REQUEST_AT = 0.0
 
 
 class FinnhubClient:
@@ -43,18 +48,58 @@ def request_json(url, params, timeout):
     Example:
         request_json(url, {"symbol": "AAPL"}, 30) returns one response dict.
     """
+    for attempt in range(4):
+        wait_for_rate_slot()
+        try:
+            response = requests.get(url, params=params, timeout=timeout)
+        except requests.RequestException as error:
+            raise RuntimeError(
+                f"Finnhub request failed: {type(error).__name__} {clean_url(url)}"
+            ) from None
+
+        if response.status_code == 429 and attempt < 3:
+            time.sleep(reset_seconds(response))
+            continue
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError:
+            raise RuntimeError(
+                f"Finnhub request failed: HTTP {response.status_code} {clean_url(url)}"
+            ) from None
+        return response.json()
+
+    raise RuntimeError(f"Finnhub request failed: HTTP 429 {clean_url(url)}")
+
+
+def wait_for_rate_slot():
+    """Wait so Finnhub gets one request per second.
+
+    Example:
+        three calls run at least one second apart across all threads.
+    """
+    global NEXT_REQUEST_AT
+    with RATE_LOCK:
+        now = time.monotonic()
+        wait = max(0.0, NEXT_REQUEST_AT - now)
+        NEXT_REQUEST_AT = max(now, NEXT_REQUEST_AT) + SECONDS_BETWEEN_REQUESTS
+    if wait:
+        time.sleep(wait)
+
+
+def reset_seconds(response):
+    """Return seconds until Finnhub's rate-limit reset.
+
+    Example:
+        an X-Ratelimit-Reset epoch two seconds away returns about 3 seconds.
+    """
+    reset = response.headers.get("X-Ratelimit-Reset")
+    if not reset:
+        return 5.0
     try:
-        response = requests.get(url, params=params, timeout=timeout)
-        response.raise_for_status()
-    except requests.HTTPError:
-        raise RuntimeError(
-            f"Finnhub request failed: HTTP {response.status_code} {clean_url(url)}"
-        ) from None
-    except requests.RequestException as error:
-        raise RuntimeError(
-            f"Finnhub request failed: {type(error).__name__} {clean_url(url)}"
-        ) from None
-    return response.json()
+        return max(1.0, float(reset) - time.time() + 1.0)
+    except ValueError:
+        return 5.0
 
 
 def clean_url(url):
