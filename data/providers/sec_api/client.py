@@ -1,4 +1,3 @@
-import logging
 import os
 import random
 import threading
@@ -13,7 +12,6 @@ from data.sec.schema import FILING_COLUMNS
 BASE_URL = "https://api.sec-api.io"
 MAX_RATE_LIMIT_SLEEP = 60.0
 SEC_API_RPS = max(1.0, float(os.getenv("OPENFACTOR_SEC_API_RPS", "18")))
-LOGGER = logging.getLogger("openfactor.sec_api")
 RATE_LOCK = threading.Lock()
 NEXT_REQUEST_AT = 0.0
 
@@ -151,14 +149,7 @@ def request_json(method, url, **kwargs):
         except requests.HTTPError:
             if response.status_code == 429:
                 rate_limits += 1
-                wait = retry_after_seconds(response, rate_limits)
-                LOGGER.warning(
-                    "SEC-API 429 retry attempt=%s sleep=%.0fs url=%s",
-                    rate_limits,
-                    wait,
-                    clean_url(url),
-                )
-                time.sleep(wait)
+                time.sleep(retry_after_seconds(response, rate_limits))
                 continue
             raise RuntimeError(
                 f"SEC-API request failed: HTTP {response.status_code} {method} {clean_url(url)}"
