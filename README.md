@@ -361,6 +361,14 @@ universe.csv
 metadata.json
 ```
 
+Current public model:
+
+[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/)
+
+Latest pointer:
+
+[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json)
+
 The runtime loader reads the public model files and returns:
 
 ```python
@@ -383,5 +391,5 @@ separate portfolio construction or backtesting packages.
 ---
 
 <div align="center">
-Built by <a href="https://rallies.ai">Rallies.ai</a>
+Built with ❤️ by <a href="https://rallies.ai">Rallies.ai</a>
 </div>
