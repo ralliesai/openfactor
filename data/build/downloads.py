@@ -28,13 +28,13 @@ class ProviderDownloader:
     """Download OpenFactor provider inputs.
 
     Example:
-        downloader = ProviderDownloader(workers=8, sec_workers=1)
+        downloader = ProviderDownloader(workers=8, sec_workers=5)
         downloader.prices(["AAPL"], "2024-01-01", "2024-01-31")
         returns daily Massive price rows.
     """
 
     workers: int = 8
-    sec_workers: int = 1
+    sec_workers: int = 5
 
     def prices(self, tickers, start_date, end_date):
         """Download daily price rows from Massive.

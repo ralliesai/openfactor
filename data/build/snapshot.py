@@ -76,7 +76,7 @@ class DatasetBuilder:
         as_of_date=None,
         universe_limit=1000,
         workers=8,
-        sec_workers=1,
+        sec_workers=5,
         tickers=None,
         universe_name=UNIVERSE_NAME,
         downloader=None,

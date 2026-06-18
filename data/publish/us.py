@@ -49,7 +49,7 @@ class UsConfig:
     as_of_date: str
     limit: int = DEFAULT_LIMIT
     workers: int = 8
-    sec_workers: int = 1
+    sec_workers: int = 5
     public_bucket: str = "openfactor-public"
     private_bucket: str = "openfactor-private"
     universe_name: str = ""
@@ -227,7 +227,7 @@ def parse_args():
     parser.add_argument("--as-of-date", default=default_as_of_date())
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
     parser.add_argument("--workers", type=int, default=8)
-    parser.add_argument("--sec-workers", type=int, default=1)
+    parser.add_argument("--sec-workers", type=int, default=5)
     parser.add_argument("--public-bucket", default="openfactor-public")
     parser.add_argument("--private-bucket", default="openfactor-private")
     parser.add_argument("--universe-name", default="")

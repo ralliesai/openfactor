@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -8,6 +9,8 @@ from data.sec.schema import FILING_COLUMNS
 
 
 BASE_URL = "https://api.sec-api.io"
+MAX_RATE_LIMIT_SLEEP = 60.0
+LOGGER = logging.getLogger("openfactor.sec_api")
 
 
 class SecApiClient:
@@ -131,8 +134,9 @@ def request_json(method, url, **kwargs):
     """Return one SEC-API JSON response.
 
     Example:
-        request_json("GET", url, timeout=30) returns one response dict.
+        both filings and xbrl-to-json calls retry on 429 before returning JSON.
     """
+    rate_limits = 0
     while True:
         try:
             response = requests.request(method, url, **kwargs)
@@ -140,7 +144,15 @@ def request_json(method, url, **kwargs):
             return response.json()
         except requests.HTTPError:
             if response.status_code == 429:
-                time.sleep(retry_after_seconds(response))
+                rate_limits += 1
+                wait = retry_after_seconds(response, rate_limits)
+                LOGGER.warning(
+                    "SEC-API 429 retry attempt=%s sleep=%.0fs url=%s",
+                    rate_limits,
+                    wait,
+                    clean_url(url),
+                )
+                time.sleep(wait)
                 continue
             raise RuntimeError(
                 f"SEC-API request failed: HTTP {response.status_code} {method} {clean_url(url)}"
@@ -151,16 +163,22 @@ def request_json(method, url, **kwargs):
             ) from None
 
 
-def retry_after_seconds(response):
+def retry_after_seconds(response, attempt):
     """Return provider rate-limit wait seconds.
 
     Example:
-        Retry-After: 2 waits two seconds before the next request.
+        attempt 3 without Retry-After waits 4 seconds before retrying.
     """
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return max(1.0, float(retry_after))
+        except ValueError:
+            pass
     try:
-        return max(1.0, float(response.headers.get("Retry-After", 5)))
-    except ValueError:
-        return 5.0
+        return min(MAX_RATE_LIMIT_SLEEP, float(2 ** (attempt - 1)))
+    except OverflowError:
+        return MAX_RATE_LIMIT_SLEEP
 
 
 def clean_url(url):
