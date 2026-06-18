@@ -99,3 +99,8 @@ providers/  provider clients
 sec/        point-in-time SEC fundamentals
 publish/    storage publishing
 ```
+
+---
+
+For private input access to verify the public model files, email
+[faizann288@gmail.com](mailto:faizann288@gmail.com).
