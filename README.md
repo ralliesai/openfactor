@@ -1,11 +1,22 @@
-# OpenFactor
+<div align="center">
 
-OpenFactor is an open-source equity factor risk model.
+# [OpenFactor](https://rallies.ai)
 
-It provides daily factor snapshots, portfolio exposure reports, factor risk
-attribution, and stock-specific risk for public equities. The package is meant
-to be used as the risk-model layer underneath portfolio analytics, portfolio
-construction, and manager research workflows.
+**Open-source equity factor risk model**
+
+*Daily model snapshots for exposures, factor risk attribution, and stock-specific risk*
+
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Model](https://img.shields.io/badge/model-openfactor--us1000-111827.svg)](#public-model)
+[![Built by Rallies.ai](https://img.shields.io/badge/Built%20by-Rallies.ai-ff6b6b.svg)](https://rallies.ai)
+
+</div>
+
+OpenFactor publishes deterministic equity risk model snapshots for portfolio
+analytics, portfolio construction, and manager research workflows.
+
+## Public Model
 
 The first public model is:
 
@@ -220,3 +231,9 @@ OpenFactor is the risk model layer.
 It does not optimize portfolios, run strategy backtests, or simulate execution
 costs. Those workflows should consume OpenFactor snapshots from separate
 portfolio construction or backtesting packages.
+
+---
+
+<div align="center">
+Built by <a href="https://rallies.ai">Rallies.ai</a>
+</div>
