@@ -4,7 +4,7 @@
 
 **Open-source equity factor risk model**
 
-*Daily model snapshots for exposures, factor risk attribution, and stock-specific risk*
+*Portfolio exposures, factor risk attribution, and stock-specific risk*
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -13,8 +13,9 @@
 
 </div>
 
-OpenFactor publishes deterministic equity risk model snapshots for portfolio
-analytics, portfolio construction, and manager research workflows.
+OpenFactor is a deterministic equity risk model for portfolio analytics, risk
+attribution, and manager research workflows. It is designed to be an open
+alternative to institutional multi-factor risk models.
 
 ## Public Model
 
@@ -24,24 +25,23 @@ The first public model is:
 openfactor-us1000
 ```
 
-It covers the top 1000 active US common stocks by market cap for the model date.
+It covers the top 1000 active US common stocks by market cap.
 
-## What The Model Produces
+## What the Model Provides
 
-Each daily snapshot contains:
+The model package loads:
 
 | Object | Use |
 | --- | --- |
-| `universe` | Model constituents for the snapshot date |
+| `universe` | Model constituents |
 | `exposures` | Ticker-level factor exposures |
 | `factor_returns` | Recent realized factor returns |
 | `factor_covariance` | Annualized factor covariance matrix |
 | `specific_risk` | Annualized stock-specific residual risk |
-| `metadata` | Model date, universe name, model version, and build metadata |
+| `metadata` | Universe name, model version, and model metadata |
 
-These are enough to report portfolio exposures, common-factor risk,
-stock-specific risk, and total risk without direct access to the underlying
-data vendors.
+These files are enough to report portfolio exposures, common-factor risk,
+stock-specific risk, and total risk without direct access to vendor data.
 
 ## Factor Coverage
 
@@ -224,6 +224,9 @@ data vendors.
   </tbody>
 </table>
 
+`market` is estimated inside the factor-return model. The remaining scalar,
+sector, and industry factors are ticker-level exposures.
+
 ## Model Methodology
 
 OpenFactor separates exposures from factor returns.
@@ -272,7 +275,7 @@ snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
 ```
 
-Use a dated model snapshot:
+Load a dated model:
 
 ```python
 snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
@@ -293,7 +296,7 @@ MSFT,0.30
 NVDA,0.30
 ```
 
-Dated snapshot:
+Dated model:
 
 ```bash
 openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfolio.csv
@@ -309,9 +312,9 @@ openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfo
 | `style` | Portfolio exposure to scalar factors |
 | `sector` | Portfolio sector allocation |
 | `specific_risk` | Holding-level stock-specific risk |
-| `factor_risk` | Factor exposure, factor volatility, and risk contribution |
+| `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
 | `risk_share` | Factor vs stock-specific variance share |
-| `total_risk` | Factor risk, stock-specific risk, and total portfolio risk |
+| `total_risk` | Factor, stock-specific, and total annualized risk |
 
 Example report access:
 
@@ -344,9 +347,9 @@ stock_specific       ...
 total                ...
 ```
 
-## Snapshot Files
+## Files
 
-The public model snapshot is stored as inspectable CSV files:
+The public model is stored as inspectable CSV and JSON files:
 
 ```text
 exposures.csv
@@ -358,7 +361,7 @@ universe.csv
 metadata.json
 ```
 
-The runtime loader reads the public snapshot and returns:
+The runtime loader reads the public model files and returns:
 
 ```python
 snapshot.universe
@@ -374,8 +377,8 @@ snapshot.metadata
 OpenFactor is the risk model layer.
 
 It does not optimize portfolios, run strategy backtests, or simulate execution
-costs. Those workflows should consume OpenFactor snapshots from separate
-portfolio construction or backtesting packages.
+costs. Those workflows should consume OpenFactor as the risk-model layer from
+separate portfolio construction or backtesting packages.
 
 ---
 
