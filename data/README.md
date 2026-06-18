@@ -1,20 +1,29 @@
 # OpenFactor Data Pipeline
 
-This folder builds and publishes OpenFactor model snapshots.
+This folder contains the code that builds OpenFactor model datasets.
 
-The installed `openfactor` package does not use this pipeline at runtime. Normal
-users load published snapshots with:
+OpenFactor runs a scheduled daily job that refreshes the public model files for
+the latest trading date. The installed `openfactor` package does not run this
+pipeline; it reads the published model through `openfactor.load_snapshot()`.
 
-```python
-import openfactor as of
+## Daily Flow
 
-snapshot = of.load_snapshot("openfactor-us1000")
-```
+The scheduled job:
 
-## Inputs
+1. Selects the model universe.
+2. Pulls market, reference, filing, estimate, sentiment, dividend, and
+   short-interest inputs.
+3. Computes factor exposures.
+4. Estimates factor returns and covariance.
+5. Estimates stock-specific residual risk.
+6. Publishes the public model files.
 
-The data pipeline pulls market, reference, filing, estimate, sentiment, dividend,
-and short-interest inputs from provider APIs, then builds the public model files:
+The publisher skips a date when the complete object set already exists, so the
+job can be safely scheduled without rewriting an existing model.
+
+## Public Outputs
+
+The public OpenFactor model contains:
 
 ```text
 exposures.csv
@@ -26,50 +35,61 @@ universe.csv
 metadata.json
 ```
 
-Raw pricing, fundamentals, and provider responses are not part of the public
-runtime package.
+Current public model:
 
-## Publish
+[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/)
 
-Install data dependencies from the repo root:
+Latest pointer:
 
-```bash
-pip install -e ".[data]"
-```
+[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json)
 
-Set provider keys:
+## Private Inputs
 
-```bash
-export OPENFACTOR_MASSIVE_API_KEY=...
-export OPENFACTOR_SEC_API_KEY=...
-export OPENFACTOR_FINNHUB_API_KEY=...
-export OPENFACTOR_TIPRANKS_API_KEY=...
-export OPENFACTOR_TIPRANKS_API_TOKEN=...
-export OPENFACTOR_FMP_API_KEY=...
-```
+Raw pricing, fundamentals, provider responses, and operational credentials are
+not part of the public runtime package. They are used only by the scheduled data
+pipeline to produce the public model files.
 
-Set storage keys:
+## Custom Datasets
+
+Use this pipeline if you want to publish your own OpenFactor model files with
+your own storage, universe name, or universe size.
+
+The built-in US publisher accepts the main dataset controls:
 
 ```bash
-export OPENFACTOR_R2_ACCOUNT_ID=...
-export OPENFACTOR_R2_ACCESS_KEY_ID=...
-export OPENFACTOR_R2_SECRET_ACCESS_KEY=...
+python3.10 -m data.publish.us \
+  --universe-name my-us500 \
+  --limit 500 \
+  --public-bucket my-openfactor-public \
+  --private-bucket my-openfactor-private
 ```
 
-Publish the default dataset:
+Useful options:
 
-```bash
-python3.10 -m data.publish.us
+| Option | Purpose |
+| --- | --- |
+| `--universe-name` | Name used in storage paths and metadata |
+| `--limit` | Number of US common stocks selected by market cap |
+| `--as-of-date` | Model date to build |
+| `--public-bucket` | Bucket for model files consumed by runtime users |
+| `--private-bucket` | Bucket for raw inputs and audit files |
+| `--workers` | Market/reference download concurrency |
+| `--sec-workers` | SEC/fundamental download concurrency |
+
+For a fully custom ticker list, instantiate `DatasetBuilder` directly and pass
+`tickers` plus a `universe_name`:
+
+```python
+from data.build.snapshot import DatasetBuilder
+
+result = DatasetBuilder(
+    tickers=["AAPL", "MSFT", "NVDA"],
+    universe_name="my-tech-model",
+).build()
 ```
 
-Publish a smaller verification dataset:
-
-```bash
-python3.10 -m data.publish.us --limit 25
-```
-
-The publisher skips if the complete object set already exists for the model
-date. To rebuild a date, delete that date from storage and publish again.
+Then publish the result with your own storage client or use
+`data.build.snapshot.publish_dataset()` with your bucket names.
 
 ## Code Layout
 
@@ -77,5 +97,5 @@ date. To rebuild a date, delete that date from storage and publish again.
 build/      dataset construction
 providers/  provider clients
 sec/        point-in-time SEC fundamentals
-publish/    R2 publishing
+publish/    storage publishing
 ```
