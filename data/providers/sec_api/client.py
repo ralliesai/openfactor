@@ -1,5 +1,7 @@
 import logging
 import os
+import random
+import threading
 import time
 
 import pandas as pd
@@ -10,7 +12,10 @@ from data.sec.schema import FILING_COLUMNS
 
 BASE_URL = "https://api.sec-api.io"
 MAX_RATE_LIMIT_SLEEP = 60.0
+SEC_API_RPS = max(1.0, float(os.getenv("OPENFACTOR_SEC_API_RPS", "18")))
 LOGGER = logging.getLogger("openfactor.sec_api")
+RATE_LOCK = threading.Lock()
+NEXT_REQUEST_AT = 0.0
 
 
 class SecApiClient:
@@ -139,6 +144,7 @@ def request_json(method, url, **kwargs):
     rate_limits = 0
     while True:
         try:
+            wait_for_rate_slot()
             response = requests.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json()
@@ -176,9 +182,26 @@ def retry_after_seconds(response, attempt):
         except ValueError:
             pass
     try:
-        return min(MAX_RATE_LIMIT_SLEEP, float(2 ** (attempt - 1)))
+        wait = min(MAX_RATE_LIMIT_SLEEP, float(2 ** (attempt - 1)))
+        return wait + random.uniform(0, min(1.0, wait * 0.25))
     except OverflowError:
         return MAX_RATE_LIMIT_SLEEP
+
+
+def wait_for_rate_slot():
+    """Pace SEC-API request starts across worker threads.
+
+    Example:
+        OPENFACTOR_SEC_API_RPS=18 spaces calls just under SEC-API's 20/sec limit.
+    """
+    global NEXT_REQUEST_AT
+    interval = 1.0 / SEC_API_RPS
+    with RATE_LOCK:
+        now = time.monotonic()
+        wait = max(0.0, NEXT_REQUEST_AT - now)
+        NEXT_REQUEST_AT = max(now, NEXT_REQUEST_AT) + interval
+    if wait:
+        time.sleep(wait)
 
 
 def clean_url(url):

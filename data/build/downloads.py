@@ -49,7 +49,12 @@ class ProviderDownloader:
             lambda ticker: self.price_rows(ticker, start_date, end_date),
             self.workers,
         )
-        return self.required_table(rows, "prices", REQUIRED_COVERAGE, "no usable price rows")
+        rows = self.retry_missing(
+            "prices retry",
+            rows,
+            lambda ticker: self.price_rows(ticker, start_date, end_date),
+        )
+        return self.required_table(rows, "prices", 1.0, "no usable price rows")
 
     def reference(self, tickers, as_of_date, min_coverage=REQUIRED_COVERAGE):
         """Download market reference rows from Massive.
@@ -63,6 +68,11 @@ class ProviderDownloader:
             tickers,
             lambda ticker: self.reference_row(ticker, as_of_date),
             self.workers,
+        )
+        rows = self.retry_missing(
+            "reference retry",
+            rows,
+            lambda ticker: self.reference_row(ticker, as_of_date),
         )
         return self.clean_reference(self.required_table(rows, "reference", min_coverage, "no reference rows"))
 
@@ -109,7 +119,6 @@ class ProviderDownloader:
             tickers,
             self.finnhub_rows,
             1,
-            progress_every=10,
         )
         self.log_report(rows, "Finnhub reported financials")
         return self.concat_or_empty([frame for _, frame in rows])
@@ -125,7 +134,6 @@ class ProviderDownloader:
             tickers,
             self.analyst_rating_rows,
             1,
-            progress_every=10,
         )
         self.log_report(rows, "TipRanks analyst ratings")
         return self.concat_or_empty([frame for _, frame in rows])
@@ -141,7 +149,6 @@ class ProviderDownloader:
             tickers,
             self.analyst_estimate_rows,
             1,
-            progress_every=10,
         )
         self.log_report(rows, "FMP analyst estimates")
         return self.concat_or_empty([frame for _, frame in rows])
@@ -159,7 +166,6 @@ class ProviderDownloader:
             tickers,
             lambda ticker: self.sec_rows(ticker, dates),
             self.sec_workers,
-            progress_every=10,
         )
         self.log_report(rows, "SEC daily")
         frame = self.concat_or_empty([frame for _, frame in rows])
@@ -186,8 +192,8 @@ class ProviderDownloader:
         filed = set(filings["ticker"].astype(str).str.upper())
         return sorted(ticker for ticker, sec_ticker in requested.items() if sec_ticker in filed)
 
-    def threaded_map(self, label, items, function, workers, progress_every=50):
-        """Run provider calls with simple progress logging.
+    def threaded_map(self, label, items, function, workers):
+        """Run provider calls with one clean progress bar.
 
         Example:
             downloader.threaded_map("prices", ["AAPL"], lambda ticker: ticker, 1)
@@ -203,25 +209,35 @@ class ProviderDownloader:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(function, item): item for item in items}
             completed = as_completed(futures)
-            progress = tqdm(completed, total=len(items), desc=label, unit="ticker")
-            for done, future in enumerate(progress, start=1):
+            progress = tqdm(completed, total=len(items), desc=label, unit="ticker", dynamic_ncols=True)
+            errors = 0
+            for future in progress:
                 item = futures[future]
                 try:
                     frame = future.result()
                 except Exception as error:
                     frame = error_frame(error)
+                if frame is not None and "download_error" in frame.attrs:
+                    errors += 1
                 results.append((item, frame))
-                if done == len(items) or done % progress_every == 0:
-                    LOGGER.info(
-                        "%s progress=%s/%s errors=%s",
-                        label,
-                        done,
-                        len(items),
-                        len(self.download_errors(results)),
-                    )
+                if errors:
+                    progress.set_postfix(errors=errors)
 
         LOGGER.info("%s finished", label)
         return results
+
+    def retry_missing(self, label, rows, function):
+        """Retry empty required provider rows once before judging coverage.
+
+        Example:
+            if JPM timed out in the first price batch, retry_missing asks for JPM again.
+        """
+        missing = self.missing_tickers(rows)
+        if not missing:
+            return rows
+
+        retry = dict(self.threaded_map(label, missing, function, self.workers))
+        return [(ticker, retry.get(ticker, frame)) for ticker, frame in rows]
 
     def price_rows(self, ticker, start_date, end_date):
         """Download one ticker's daily prices from Massive.
