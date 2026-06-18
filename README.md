@@ -1,27 +1,25 @@
 # OpenFactor
 
-OpenFactor is an open-source factor risk model for public equities.
+OpenFactor is an open-source equity factor risk model.
 
-It gives investors a simple way to answer:
+It publishes deterministic daily model snapshots for portfolio exposure,
+factor risk attribution, and stock-specific risk. The runtime package loads the
+published model and reports portfolio risk without requiring data-provider
+credentials.
 
-- What factors is my portfolio exposed to?
-- How much of my risk is market, sector, style, or stock-specific?
-- Which positions are driving my factor risk?
-- What changed in my portfolio risk profile?
-
-OpenFactor is deterministic by design. The production model uses observable
-market, fundamental, estimate, sentiment, sector, and industry factors. LLM and
-semantic factors are intentionally outside this first production model.
-
-## Quick Start
-
-Install from GitHub:
+## Install
 
 ```bash
 pip install git+https://github.com/ralliesai/openfactor.git
 ```
 
-Build a report from Python:
+Local development:
+
+```bash
+pip install -e .
+```
+
+## Usage
 
 ```python
 import pandas as pd
@@ -36,19 +34,15 @@ portfolio = pd.DataFrame(
 
 snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
-
-print(report["style"])
-print(report["factor_risk"])
-print(report["total_risk"])
 ```
 
-Or use the CLI:
+CLI:
 
 ```bash
 openfactor --universe openfactor-us1000 --portfolio portfolio.csv
 ```
 
-`portfolio.csv` only needs ticker weights:
+Portfolio input:
 
 ```csv
 ticker,allocation
@@ -57,7 +51,7 @@ MSFT,0.30
 NVDA,0.30
 ```
 
-Use a dated snapshot when needed:
+Dated snapshot:
 
 ```python
 snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
@@ -67,69 +61,65 @@ snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
 openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfolio.csv
 ```
 
-## What You Get
+## Report Tables
 
-`portfolio_report()` returns a dictionary of pandas tables:
-
-| Table | Meaning |
+| Table | Contents |
 | --- | --- |
-| `missing_holdings` | Portfolio tickers missing from the model universe |
-| `style` | Weighted portfolio exposure to scalar factors |
-| `sector` | Portfolio allocation by sector |
-| `specific_risk` | Stock-specific risk for each holding |
-| `factor_risk` | Factor-level risk contribution |
-| `risk_share` | Factor risk vs residual stock-specific risk |
-| `total_risk` | Total portfolio risk estimate |
+| `missing_holdings` | Portfolio names absent from the model universe |
+| `style` | Portfolio style-factor exposures |
+| `sector` | Portfolio sector allocation |
+| `specific_risk` | Holding-level stock-specific risk |
+| `factor_risk` | Factor risk contribution |
+| `risk_share` | Factor vs stock-specific risk share |
+| `total_risk` | Factor, stock-specific, and total portfolio risk |
 
-The installed package is for risk reporting. It does not require data-provider
-keys because it loads published OpenFactor snapshots.
+## Public Universe
 
-## Current Model
-
-The default public universe is:
+The default public model is:
 
 ```text
 openfactor-us1000
 ```
 
-That means active US common stocks ranked by market cap, capped at 1000 names,
-for the model date.
+It is selected daily from active US common stocks ranked by market cap, capped at
+1000 names for the model date. Published snapshots are point-in-time from their
+publication date onward.
 
-OpenFactor estimates risk from:
+## Factor Catalog
 
-- current factor exposures
-- recent factor returns
-- factor covariance
-- stock-specific residual risk
-
-It is a current risk model, not a historical strategy backtesting database.
-Daily snapshots become point-in-time history from the day they are published.
-
-## Factors
-
-| Group | Factors |
+| Family | Factors |
 | --- | --- |
-| Market and style | Beta, Size, Mid-Cap, Momentum, Prospect, Seasonality, Long-Term Reversal, Short-Term Reversal |
-| Risk and liquidity | Residual Volatility, Downside Risk, Liquidity, Short Interest |
-| Value and income | Value, Earnings Yield, Forward Earnings Yield, Dividend Yield |
-| Growth and quality | Growth, Forward Growth, Profitability, Gross Profitability, Earnings Quality, Earnings Variability |
-| Balance sheet | Leverage, Asset Growth, Capital Discipline, Management Quality |
-| Classification | Sector, Industry |
-| Analyst data | Analyst Sentiment, Industry Momentum |
+| Market | `market`, `beta` |
+| Size | `size`, `mid_cap` |
+| Momentum | `momentum`, `industry_momentum`, `seasonality`, `long_term_reversal`, `short_term_reversal` |
+| Volatility | `residual_volatility`, `downside_risk`, `prospect` |
+| Liquidity and positioning | `liquidity`, `short_interest` |
+| Value and yield | `value`, `earnings_yield`, `forward_earnings_yield`, `dividend_yield` |
+| Growth | `growth`, `forward_growth` |
+| Quality | `profitability`, `gross_profitability`, `earnings_quality`, `earnings_variability`, `investment_quality`, `management_quality` |
+| Balance sheet | `leverage`, `investment` |
+| Classification | `sector`, `industry` |
+| Analyst data | `sentiment` |
 
-Scalar factor exposures are standardized across the model universe:
+## Model Mechanics
 
-```text
-0    roughly average
-+1   above average
--1   below average
-```
+The daily snapshot contains current exposures, recent factor returns, factor
+covariance, and stock-specific risk.
 
-Sector and industry factors are allocation-style exposures.
+Factor returns are estimated with a Barra-style cross-sectional model:
 
-## Snapshot Files
+- winsorized stock returns
+- market-cap weighted regression
+- explicit market, sector, industry, and style factors
+- sector constraints
+- residual-based specific risk
 
-Each published snapshot contains human-readable CSV files:
+The production model is deterministic. Semantic and LLM-derived factors are not
+included in the current public snapshot.
+
+## Snapshot Contract
+
+Each public snapshot contains:
 
 ```text
 exposures.csv
@@ -141,26 +131,20 @@ universe.csv
 metadata.json
 ```
 
-The runtime loader reads these files from the public OpenFactor bucket:
-
-```python
-snapshot = of.load_snapshot("openfactor-us1000")
-```
-
-The snapshot object contains:
+Runtime object:
 
 | Field | Contents |
 | --- | --- |
-| `snapshot.universe` | Model tickers |
-| `snapshot.exposures` | Ticker factor exposures |
+| `snapshot.universe` | Model universe |
+| `snapshot.exposures` | Ticker-factor exposure matrix |
 | `snapshot.factor_returns` | Recent factor return history |
 | `snapshot.factor_covariance` | Factor covariance matrix |
 | `snapshot.specific_risk` | Stock-specific risk by ticker |
-| `snapshot.metadata` | Model date, version, and build metadata |
+| `snapshot.metadata` | Model metadata |
 
-## Library API
+## Library Surface
 
-The top-level API is intentionally small:
+Primary runtime API:
 
 ```python
 import openfactor as of
@@ -169,20 +153,19 @@ snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
 ```
 
-Lower-level factor functions are available for research:
+Lower-level factor research API:
 
 ```python
 from openfactor.core.matrix import price_matrix
 from openfactor.factors.price.momentum import compute as momentum
 
 matrix = price_matrix(price_rows)
-momentum_exposures = momentum(matrix)
+exposures = momentum(matrix)
 ```
 
-## Data Publishing
+## Publishing
 
-Dataset generation is only needed if you are maintaining or rebuilding the
-public OpenFactor datasets.
+Publishing is only needed for maintainers generating daily model snapshots.
 
 Install provider dependencies:
 
@@ -190,7 +173,7 @@ Install provider dependencies:
 pip install -e ".[data]"
 ```
 
-Set provider keys:
+Provider credentials:
 
 ```bash
 export OPENFACTOR_MASSIVE_API_KEY=...
@@ -201,7 +184,7 @@ export OPENFACTOR_TIPRANKS_API_TOKEN=...
 export OPENFACTOR_FMP_API_KEY=...
 ```
 
-Set R2 credentials:
+R2 credentials:
 
 ```bash
 export OPENFACTOR_R2_ACCOUNT_ID=...
@@ -209,7 +192,7 @@ export OPENFACTOR_R2_ACCESS_KEY_ID=...
 export OPENFACTOR_R2_SECRET_ACCESS_KEY=...
 ```
 
-Publish the default US 1000 dataset from the repo root:
+Publish the default dataset:
 
 ```bash
 python3.10 -m data.publish.us
@@ -223,19 +206,19 @@ python3.10 -m data.publish.us --limit 25
 
 The publisher skips when the complete public and private object set already
 exists for the model date. To rebuild a date, delete that date from storage and
-run the publisher again.
+publish again.
 
 Only model outputs are public. Raw pricing, fundamentals, and provider responses
 stay private.
 
-## Architecture
+## Repo Layout
 
 ```text
-src/openfactor/            installed runtime package
+src/openfactor/            runtime package
 src/openfactor/core/       arrays, returns, validation, SIC helpers
-src/openfactor/factors/    deterministic factor definitions
+src/openfactor/factors/    factor definitions
 src/openfactor/model/      normalization, factor returns, risk
-src/openfactor/io/         public snapshot loading
+src/openfactor/io/         snapshot loading
 src/openfactor/portfolio/  portfolio reports
 
 data/build/                dataset construction
@@ -244,21 +227,13 @@ data/sec/                  point-in-time SEC fundamentals
 data/publish/              R2 publishing
 ```
 
-The boundary is intentional:
-
-- `src/openfactor` loads snapshots and reports risk.
-- `data` builds and publishes snapshots.
-- Provider APIs do not leak into the installed runtime workflow.
+`src/openfactor` is the installed risk-model package. `data` is the maintainer
+pipeline for building and publishing snapshots.
 
 ## Scope
 
-OpenFactor explains portfolio risk. It does not currently optimize portfolios,
-run strategy backtests, or simulate execution costs.
+OpenFactor is the risk model layer.
 
-Those should be separate tools built on top of OpenFactor:
-
-```text
-OpenFactor       risk model
-Portfolio tools  construction and optimization
-Backtest tools   historical strategy validation
-```
+It does not currently optimize portfolios, run strategy backtests, or simulate
+execution costs. Portfolio construction and backtesting should live in separate
+packages that consume OpenFactor snapshots.
