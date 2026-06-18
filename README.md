@@ -233,8 +233,11 @@ look-ahead.
 Exposures are built from price history, market data, point-in-time fundamentals,
 forward estimates, analyst data, and sector/industry classification. Each scalar
 exposure is winsorized around the cross-sectional median (MAD-based, so a handful
-of outliers can't dominate) and then standardized with market-cap weights when
-market caps are available. Sector and industry exposures stay categorical.
+of outliers can't dominate) and then standardized to a z-score. Standardization
+is market-cap weighted where caps are available: the cap-weighted mean is removed
+so the market sits near zero on every style factor, leaving each exposure as a
+tilt relative to the market (it falls back to equal weighting when caps are
+missing). Sector and industry exposures stay categorical.
 
 Exposures for a given day use only information known *before* that day's return:
 prices through the prior close, and the fundamentals and estimates effective as
@@ -268,12 +271,13 @@ stock-specific risk.
 
 ### Risk
 
-Factor covariance is the annualized covariance of recent factor returns.
-Stock-specific risk is annualized residual volatility.
+Factor covariance is the annualized sample covariance of recent daily factor
+returns. Stock-specific risk is each stock's annualized residual volatility,
+treated as uncorrelated across names.
 
 Risk attribution then combines portfolio factor exposures with the factor
-covariance matrix, and adds stock-specific risk at the portfolio level to give
-factor, specific, and total risk.
+covariance matrix for common-factor risk, and adds stock-specific risk at the
+portfolio level to give factor, specific, and total risk.
 
 ## Python Usage
 
