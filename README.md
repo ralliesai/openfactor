@@ -64,12 +64,6 @@ snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
 ```
 
-Load a dated model:
-
-```python
-snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-18")
-```
-
 ## CLI Usage
 
 ```bash
@@ -85,11 +79,9 @@ MSFT,0.30
 NVDA,0.30
 ```
 
-Dated model:
-
-```bash
-openfactor --universe openfactor-us1000 --snapshot 2026-06-18 --portfolio portfolio.csv
-```
+By default, OpenFactor loads the latest published model. For reproducible
+historical reports, pass a dated snapshot with `as_of_date` in Python or
+`--snapshot` in the CLI.
 
 ## Report Output
 
