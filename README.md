@@ -9,7 +9,6 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Author](https://img.shields.io/badge/Author-Faizan%20Ahmad-181717?logo=github&logoColor=white)](https://github.com/faizann24)
-[![Built by Rallies.ai](https://img.shields.io/badge/Built%20by-Rallies.ai-ff6b6b.svg)](https://rallies.ai)
 
 </div>
 
