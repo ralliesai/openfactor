@@ -67,7 +67,7 @@ report = of.portfolio_report(portfolio, snapshot)
 Load a dated model:
 
 ```python
-snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
+snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-18")
 ```
 
 ## CLI Usage
@@ -88,7 +88,7 @@ NVDA,0.30
 Dated model:
 
 ```bash
-openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfolio.csv
+openfactor --universe openfactor-us1000 --snapshot 2026-06-18 --portfolio portfolio.csv
 ```
 
 ## Report Output
