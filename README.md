@@ -279,6 +279,48 @@ Risk attribution then combines portfolio factor exposures with the factor
 covariance matrix for common-factor risk, and adds stock-specific risk at the
 portfolio level to give factor, specific, and total risk.
 
+## Model Quality
+
+Evidence that the model explains returns, measured on the published
+`openfactor-us1000` model. These are in-sample, explanatory statistics: they
+describe how well the factors fit realized returns, not a forward risk-forecast
+calibration (bias statistics are future work).
+
+### Cross-sectional fit
+
+| Statistic | Value |
+| --- | ---: |
+| Daily cross-sectional R², mean | 63.57% |
+| Daily cross-sectional R², median | 63.35% |
+| Trading days in window | 252 |
+| Average stocks per regression | 861 |
+
+On an average day the model explains roughly **64% of the cross-sectional
+dispersion of stock returns** across market, sector, industry, and style factors.
+The R² is market-cap weighted (consistent with the WLS fit) and measured around
+the cap-weighted mean return, so it reflects dispersion explained *relative to the
+market* and is not inflated by large index moves. It is a raw, in-sample fit over
+the latest 252 trading days (~1 year, a single market regime), and the
+near-identical mean and median indicate a stable day-to-day distribution. The
+roughly 861 of 1000 names per day reflect stocks dropped when required inputs are
+missing or their industry group is too thin to estimate.
+
+### Factor sanity check
+
+OpenFactor's momentum factor return tracks recognized public momentum factors:
+
+| Benchmark | Correlation | Sample |
+| --- | ---: | --- |
+| Ken French U.S. Mom | 0.77 | daily, ~1 year overlap |
+| AQR VME U.S. Momentum | 0.59 | monthly, ~12 observations |
+
+The daily correlation with Ken French is the stronger signal; the monthly AQR
+figure rests on only ~12 points and should be read as directional. OpenFactor's
+factor is *purified* — a cross-sectional regression return, orthogonal to the
+model's other factors (size, beta, sector, and the rest) — while the benchmarks
+are raw sorted portfolios, so a correlation in this range is what we expect and
+confirms the factor captures momentum rather than replicating any single index.
+
 ## Python Usage
 
 ```bash
@@ -404,26 +446,6 @@ snapshot.factor_covariance
 snapshot.specific_risk
 snapshot.metadata
 ```
-
-## Model Quality
-
-Latest `openfactor-us1000` validation window:
-
-| Statistic | Value |
-| --- | ---: |
-| Daily cross-sectional R², mean | 63.57% |
-| Daily cross-sectional R², median | 63.35% |
-| Regression days | 252 |
-| Average stocks per day | 861 |
-
-This is same-day explanatory R²: how much cross-sectional stock-return
-dispersion the model explains through common factors. It is not a forward risk
-forecast calibration statistic.
-
-Momentum sanity check: OpenFactor momentum had `0.77` daily correlation with
-Ken French U.S. Mom and `0.59` monthly correlation with AQR VME U.S. Momentum
-over the latest available overlap. The constructions differ, so this is a trend
-sanity check rather than an index replication claim.
 
 ## Scope
 
