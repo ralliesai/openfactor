@@ -405,6 +405,26 @@ snapshot.specific_risk
 snapshot.metadata
 ```
 
+## Model Quality
+
+Latest `openfactor-us1000` validation window:
+
+| Statistic | Value |
+| --- | ---: |
+| Daily cross-sectional R², mean | 63.57% |
+| Daily cross-sectional R², median | 63.35% |
+| Regression days | 252 |
+| Average stocks per day | 861 |
+
+This is same-day explanatory R²: how much cross-sectional stock-return
+dispersion the model explains through common factors. It is not a forward risk
+forecast calibration statistic.
+
+Momentum sanity check: OpenFactor momentum had `0.77` daily correlation with
+Ken French U.S. Mom and `0.59` monthly correlation with AQR VME U.S. Momentum
+over the latest available overlap. The constructions differ, so this is a trend
+sanity check rather than an index replication claim.
+
 ## Scope
 
 OpenFactor is the risk model layer.
