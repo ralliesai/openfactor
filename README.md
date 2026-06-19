@@ -43,6 +43,99 @@ The model package loads:
 These files are enough to report portfolio exposures, common-factor risk,
 stock-specific risk, and total risk without direct access to vendor data.
 
+## Python Usage
+
+```bash
+pip install git+https://github.com/ralliesai/openfactor.git
+```
+
+```python
+import pandas as pd
+import openfactor as of
+
+portfolio = pd.DataFrame(
+    {
+        "ticker": ["AAPL", "MSFT", "NVDA"],
+        "allocation": [0.40, 0.30, 0.30],
+    }
+)
+
+snapshot = of.load_snapshot("openfactor-us1000")
+report = of.portfolio_report(portfolio, snapshot)
+```
+
+Load a dated model:
+
+```python
+snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
+```
+
+## CLI Usage
+
+```bash
+openfactor --universe openfactor-us1000 --portfolio portfolio.csv
+```
+
+`portfolio.csv`:
+
+```csv
+ticker,allocation
+AAPL,0.40
+MSFT,0.30
+NVDA,0.30
+```
+
+Dated model:
+
+```bash
+openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfolio.csv
+```
+
+## Report Output
+
+`portfolio_report()` returns a dictionary of pandas tables.
+
+| Key | Table |
+| --- | --- |
+| `missing_holdings` | Holdings not found in the model universe |
+| `style` | Portfolio exposure to scalar factors |
+| `sector` | Portfolio sector allocation |
+| `specific_risk` | Holding-level stock-specific risk |
+| `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
+| `risk_share` | Factor vs stock-specific variance share |
+| `total_risk` | Factor, stock-specific, and total annualized risk |
+
+Example report access:
+
+```python
+report["style"]
+report["factor_risk"]
+report["total_risk"]
+```
+
+Typical table shapes:
+
+```text
+style
+                      exposure
+Beta                    ...
+Momentum                ...
+Size                    ...
+Value                   ...
+
+factor_risk
+                      exposure  factor_volatility  risk_contribution
+Beta                       ...                ...                ...
+Sector: Technology         ...                ...                ...
+Momentum                   ...                ...                ...
+
+total_risk
+                    risk
+factor               ...
+stock_specific       ...
+total                ...
+```
+
 ## Factor Coverage
 
 <table>
@@ -320,99 +413,6 @@ factor is *purified* — a cross-sectional regression return, orthogonal to the
 model's other factors (size, beta, sector, and the rest) — while the benchmarks
 are raw sorted portfolios, so a correlation in this range is what we expect and
 confirms the factor captures momentum rather than replicating any single index.
-
-## Python Usage
-
-```bash
-pip install git+https://github.com/ralliesai/openfactor.git
-```
-
-```python
-import pandas as pd
-import openfactor as of
-
-portfolio = pd.DataFrame(
-    {
-        "ticker": ["AAPL", "MSFT", "NVDA"],
-        "allocation": [0.40, 0.30, 0.30],
-    }
-)
-
-snapshot = of.load_snapshot("openfactor-us1000")
-report = of.portfolio_report(portfolio, snapshot)
-```
-
-Load a dated model:
-
-```python
-snapshot = of.load_snapshot("openfactor-us1000", as_of_date="2026-06-16")
-```
-
-## CLI Usage
-
-```bash
-openfactor --universe openfactor-us1000 --portfolio portfolio.csv
-```
-
-`portfolio.csv`:
-
-```csv
-ticker,allocation
-AAPL,0.40
-MSFT,0.30
-NVDA,0.30
-```
-
-Dated model:
-
-```bash
-openfactor --universe openfactor-us1000 --snapshot 2026-06-16 --portfolio portfolio.csv
-```
-
-## Report Output
-
-`portfolio_report()` returns a dictionary of pandas tables.
-
-| Key | Table |
-| --- | --- |
-| `missing_holdings` | Holdings not found in the model universe |
-| `style` | Portfolio exposure to scalar factors |
-| `sector` | Portfolio sector allocation |
-| `specific_risk` | Holding-level stock-specific risk |
-| `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
-| `risk_share` | Factor vs stock-specific variance share |
-| `total_risk` | Factor, stock-specific, and total annualized risk |
-
-Example report access:
-
-```python
-report["style"]
-report["factor_risk"]
-report["total_risk"]
-```
-
-Typical table shapes:
-
-```text
-style
-                      exposure
-Beta                    ...
-Momentum                ...
-Size                    ...
-Value                   ...
-
-factor_risk
-                      exposure  factor_volatility  risk_contribution
-Beta                       ...                ...                ...
-Sector: Technology         ...                ...                ...
-Momentum                   ...                ...                ...
-
-total_risk
-                    risk
-factor               ...
-stock_specific       ...
-total                ...
-```
 
 ## Files
 
