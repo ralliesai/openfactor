@@ -405,6 +405,23 @@ model's other factors (size, beta, sector, and the rest) — while the benchmark
 are raw sorted portfolios, so a correlation in this range is what we expect and
 confirms the factor captures momentum rather than replicating any single index.
 
+## Roadmap
+
+OpenFactor ships a clean, transparent baseline today. Planned enhancements to the
+covariance and specific-risk estimation include:
+
+- **Eigenfactor covariance adjustment** — debias the factor covariance for use in
+  optimized portfolios.
+- **Volatility-regime scaling** — align forecast risk with the current market
+  volatility level.
+- **Newey-West adjustment** — account for serial correlation in daily factor
+  returns.
+- **EWMA / half-life weighting** — give recent observations more weight.
+- **Bayesian shrinkage of specific risk** — stabilize stock-specific estimates
+  using observation counts.
+- **Bias-statistic calibration** — measure the model's forecast accuracy over
+  time.
+
 ## Files
 
 The public model is stored as inspectable CSV and JSON files:
