@@ -38,13 +38,18 @@ universe.csv
 metadata.json
 ```
 
-Current public model:
+Current public files:
 
-[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/)
-
-Latest pointer:
-
-[https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json)
+| File | URL |
+| --- | --- |
+| Latest pointer | [latest.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest.json) |
+| Metadata | [metadata.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/metadata.json) |
+| Exposures | [exposures.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/exposures.csv) |
+| Long exposures | [details/exposures_long.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/details/exposures_long.csv) |
+| Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
+| Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
+| Specific risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
+| Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
 
 ## Private Inputs
 
