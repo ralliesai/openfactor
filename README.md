@@ -94,15 +94,19 @@ historical reports, pass a dated snapshot with `as_of_date` in Python or
 | `sector` | Portfolio sector allocation |
 | `specific_risk` | Holding-level stock-specific risk |
 | `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
+| `active_risk` | Benchmark-relative factor exposure and tracking-error contribution |
 | `risk_share` | Factor vs stock-specific variance share |
 | `total_risk` | Factor, stock-specific, and total annualized risk |
+| `tracking_error` | Active factor, stock-specific, and total tracking error vs the benchmark |
 
 Example report access:
 
 ```python
 report["style"]
 report["factor_risk"]
+report["active_risk"]
 report["total_risk"]
+report["tracking_error"]
 ```
 
 Typical table shapes:
@@ -462,6 +466,20 @@ treated as uncorrelated across names.
 Risk attribution then combines portfolio factor exposures with the factor
 covariance matrix for common-factor risk, and adds stock-specific risk at the
 portfolio level to give factor, specific, and total risk.
+
+### Benchmark and active risk
+
+The report also measures risk relative to a benchmark. The built-in benchmark is
+the **cap-weighted model universe** — every constituent weighted by market cap —
+so it ships with the model and needs no index license.
+
+Active exposures are the portfolio's exposures minus the benchmark's
+(`active = portfolio − benchmark`), and the same factor covariance and
+stock-specific risk produce active factor risk, active stock-specific risk, and
+total **tracking error**. Because style exposures are cap-weighted standardized,
+the benchmark sits near zero on every style factor: active style exposures read
+as the portfolio's tilts, the market factor nets to zero, and sector and industry
+carry the real benchmark-relative bets.
 
 ## Model Quality
 

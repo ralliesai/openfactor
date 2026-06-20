@@ -3,6 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
+from openfactor.console import console, print_table
 from openfactor.io.snapshot import load_snapshot
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
 from openfactor.portfolio.report import portfolio_report
@@ -22,19 +23,20 @@ def main():
         raise SystemExit(str(error)) from error
 
     report = portfolio_report(portfolio, snapshot)
-    print_frame("portfolio holdings", portfolio, rows=12)
-    print(
-        f"snapshot as_of_date={snapshot.as_of_date} "
-        f"universe={snapshot.universe_name} "
-        f"tickers={len(snapshot.universe)}"
+    console.rule(
+        f"[bold]OpenFactor[/bold]  {snapshot.universe_name}  "
+        f"as_of={snapshot.as_of_date}  tickers={len(snapshot.universe)}"
     )
-    print_frame("missing holdings", report["missing_holdings"])
-    print_frame("style factor exposures", report["style"])
-    print_frame("sector allocation", report["sector"])
-    print_frame("stock-specific risk", report["specific_risk"])
-    print_frame("factor risk contribution", report["factor_risk"])
-    print_frame("factor vs residual risk share", report["risk_share"])
-    print_frame("portfolio total risk", report["total_risk"])
+    print_table("portfolio holdings", portfolio.head(12), index=False)
+    print_table("missing holdings", report["missing_holdings"], index=False)
+    print_table("style factor exposures", report["style"])
+    print_table("sector allocation", report["sector"])
+    print_table("stock-specific risk", report["specific_risk"])
+    print_table("factor risk contribution", report["factor_risk"])
+    print_table("active factor risk vs benchmark", report["active_risk"])
+    print_table("factor vs residual risk share", report["risk_share"])
+    print_table("portfolio total risk", report["total_risk"])
+    print_table("tracking error vs benchmark", report["tracking_error"])
     if args.semantic_discovery:
         from openfactor.llm import discover_semantic_factors
 
@@ -87,16 +89,6 @@ def load_portfolio(path):
     if not np.isclose(portfolio["allocation"].sum(), 1.0):
         raise ValueError("portfolio allocation must sum to 1.0")
     return portfolio
-
-
-def print_frame(title, frame, rows=None):
-    """Print one report table.
-
-    Example:
-        print_frame("portfolio", portfolio) prints the full table.
-    """
-    preview = frame if rows is None else frame.head(rows)
-    print(f"{title}\n{preview.to_string()}")
 
 
 if __name__ == "__main__":

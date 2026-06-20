@@ -15,6 +15,7 @@ dependencies = [
   "openai-agents",
   "pandas>=2.0",
   "pydantic>=2.0",
+  "rich>=13.0",
   "scipy>=1.10",
   "tqdm>=4.66",
 ]

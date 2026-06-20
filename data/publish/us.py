@@ -18,6 +18,7 @@ from data.build.fundamentals import TTM_TO_INTERNAL
 from data.build.snapshot import DatasetBuilder, publish_dataset
 from data.build.quality import validate_snapshot
 from data.publish.r2 import R2Client
+from openfactor.console import setup_logging
 
 
 LOGGER = logging.getLogger("openfactor.publish")
@@ -251,7 +252,7 @@ def main():
         python3.10 -m data.publish.us
         publishes openfactor-us1000 unless it already exists.
     """
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    setup_logging()
     args = parse_args()
     UsPublisher(
         UsConfig(

@@ -2,6 +2,7 @@ import pandas as pd
 
 from openfactor.model.exposures import exposure_matrix, model_exposure_matrix
 from openfactor.model.risk import (
+    active_holdings,
     factor_risk_report_from_covariance,
     portfolio_risk_report,
     risk_explanation_report,
@@ -47,20 +48,23 @@ def portfolio_report(portfolio, snapshot):
         portfolio_report(portfolio, snapshot)["total_risk"]
         returns factor, specific, and total risk rows.
     """
-    factor_risk = factor_risk_report_from_covariance(
-        snapshot.exposures,
-        portfolio,
-        snapshot.factor_covariance,
+    factor_risk = with_display_index(
+        factor_risk_report_from_covariance(snapshot.exposures, portfolio, snapshot.factor_covariance)
     )
-    factor_risk = with_display_index(factor_risk)
+    active = active_holdings(portfolio, snapshot.exposures)
+    active_risk = with_display_index(
+        factor_risk_report_from_covariance(snapshot.exposures, active, snapshot.factor_covariance)
+    )
     return {
         "missing_holdings": missing_holdings(portfolio, snapshot.universe),
         "style": with_display_index(style_report(snapshot.exposures, portfolio)),
         "sector": sector_report(snapshot.exposures, portfolio),
         "specific_risk": stock_specific_report(snapshot.specific_risk, portfolio),
         "factor_risk": factor_risk,
+        "active_risk": active_risk,
         "risk_share": risk_explanation_report(factor_risk, snapshot.specific_risk, portfolio),
         "total_risk": portfolio_risk_report(factor_risk, snapshot.specific_risk, portfolio),
+        "tracking_error": portfolio_risk_report(active_risk, snapshot.specific_risk, active, strict=False),
     }
 
 

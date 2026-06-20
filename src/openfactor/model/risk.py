@@ -30,6 +30,29 @@ def portfolio_factor_exposure(exposures, portfolio):
     return exposure
 
 
+def benchmark_weights(exposures):
+    """Return cap-weighted universe benchmark weights by ticker.
+
+    Example:
+        a stock with 2x the market cap gets 2x the benchmark weight.
+    """
+    size = exposures[exposures["factor"] == "size"].drop_duplicates("ticker")
+    caps = np.exp(pd.to_numeric(size.set_index("ticker")["raw_value"], errors="coerce"))
+    caps = caps[np.isfinite(caps) & (caps > 0)]
+    return (caps / caps.sum()).rename("weight")
+
+
+def active_holdings(portfolio, exposures):
+    """Return portfolio-minus-benchmark active weights over the universe.
+
+    Example:
+        30% in Technology against a 25% benchmark gives +5% active Technology.
+    """
+    benchmark = benchmark_weights(exposures)
+    weights = portfolio.set_index("ticker")["allocation"].reindex(benchmark.index).fillna(0.0)
+    return (weights - benchmark).rename("allocation").reset_index()
+
+
 def factor_risk_report(exposures, portfolio, factor_returns):
     """Return factor risk contributions for one portfolio.
 
@@ -79,14 +102,15 @@ def factor_risk_report_from_covariance(exposures, portfolio, covariance):
     return report.sort_values("risk_contribution", key=np.abs, ascending=False)
 
 
-def portfolio_risk_report(factor_report, specific_risks, portfolio):
+def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True):
     """Return total, factor, and stock-specific portfolio risk.
 
     Example:
         12% factor risk and 5% specific risk combine to 13% total risk.
+        strict=False skips unmodeled names (benchmark-relative tracking error).
     """
     factor_variance = factor_report["variance_contribution"].sum()
-    specific = portfolio_specific_risk(portfolio, specific_risks)
+    specific = portfolio_specific_risk(portfolio, specific_risks, strict)
     total = np.sqrt(max(factor_variance, 0.0) + specific**2)
     rows = [
         ("factor", np.sqrt(max(factor_variance, 0.0))),

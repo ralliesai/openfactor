@@ -39,19 +39,20 @@ def specific_risk(matrix, exposures, window=252, price_factors=None):
     return specific_risk_from_residuals(residuals)
 
 
-def portfolio_specific_risk(portfolio, risks):
+def portfolio_specific_risk(portfolio, risks, strict=True):
     """Return portfolio annualized stock-specific risk.
 
     Example:
         AAPL has 20% specific risk and a 50% weight.
         Its variance contribution is (0.50 * 0.20) ** 2.
+        strict=False skips names without a modeled risk (benchmark weights).
     """
     require_columns(portfolio, ["ticker", "allocation"])
     require_columns(risks, ["ticker", "specific_risk"])
 
     weights = portfolio.set_index("ticker")["allocation"]
     stock_risk = risks.set_index("ticker")["specific_risk"].reindex(weights.index)
-    if stock_risk.isna().any():
+    if strict and stock_risk.isna().any():
         return np.nan
 
     return np.sqrt(((weights * stock_risk) ** 2).sum())
