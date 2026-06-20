@@ -24,6 +24,11 @@ def validate_snapshot(snapshot):
     if not set(covariance.columns).issubset(factors):
         raise ValueError("factor_covariance has unknown factors")
 
+    exposure_factors = set(snapshot.exposures["factor"].astype(str))
+    missing_exposures = sorted(set(covariance.columns) - exposure_factors - {"market"})
+    if missing_exposures:
+        raise ValueError(f"factor_covariance has factors missing exposures: {missing_exposures[:10]}")
+
 
 def require_columns(frame, columns, name):
     """Raise if a table is missing required columns.
