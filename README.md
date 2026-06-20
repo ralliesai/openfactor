@@ -79,6 +79,12 @@ MSFT,0.30
 NVDA,0.30
 ```
 
+The CLI prints a consolidated risk report: a portfolio-vs-active **Risk Summary**
+(total, common-factor, specific, and tracking error) and a single nested
+**Factor Risk Decomposition** (Common Factor → Market, Style, Industry → Specific
+→ Total) with exposures, active exposures, factor volatility, and percent of
+risk. Missing holdings and any discovered semantic factors print in the footer.
+
 By default, OpenFactor loads the latest published model. For reproducible
 historical reports, pass a dated snapshot with `as_of_date` in Python or
 `--snapshot` in the CLI.

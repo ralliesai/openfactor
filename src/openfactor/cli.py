@@ -3,10 +3,11 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from openfactor.console import console, print_table
+from openfactor.console import console, print_risk_summary, print_risk_table
 from openfactor.io.snapshot import load_snapshot
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
-from openfactor.portfolio.report import portfolio_report
+from openfactor.portfolio.report import missing_holdings
+from openfactor.portfolio.summary import risk_decomposition
 
 
 def main():
@@ -22,21 +23,16 @@ def main():
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
 
-    report = portfolio_report(portfolio, snapshot)
+    summary, rows = risk_decomposition(portfolio, snapshot)
     console.rule(
         f"[bold]OpenFactor[/bold]  {snapshot.universe_name}  "
         f"as_of={snapshot.as_of_date}  tickers={len(snapshot.universe)}"
     )
-    print_table("portfolio holdings", portfolio.head(12), index=False)
-    print_table("missing holdings", report["missing_holdings"], index=False)
-    print_table("style factor exposures", report["style"])
-    print_table("sector allocation", report["sector"])
-    print_table("stock-specific risk", report["specific_risk"])
-    print_table("factor risk contribution", report["factor_risk"])
-    print_table("active factor risk vs benchmark", report["active_risk"])
-    print_table("factor vs residual risk share", report["risk_share"])
-    print_table("portfolio total risk", report["total_risk"])
-    print_table("tracking error vs benchmark", report["tracking_error"])
+    print_risk_summary(summary)
+    print_risk_table(rows)
+    missing = missing_holdings(portfolio, snapshot.universe)["ticker"].tolist()
+    if missing:
+        console.print(f"[dim]missing holdings (not in universe): {', '.join(missing)}[/dim]")
     if args.semantic_discovery:
         from openfactor.llm import discover_semantic_factors
 

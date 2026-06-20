@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from openfactor.console import echo, print_table
 from openfactor.llm.cache import (
     DEFAULT_SEMANTIC_CACHE,
     cached_memberships,
@@ -68,7 +69,7 @@ def discover_semantic_factors(
     batch_size=50,
     semantic_cache=DEFAULT_SEMANTIC_CACHE,
     progress=True,
-    logger=print,
+    logger=echo,
 ):
     """Run on-demand semantic discovery when residual risk is high.
 
@@ -502,7 +503,7 @@ def empty_result(share, threshold, skipped_holdings, reason, pca=None):
     return SemanticDiscoveryResult(share, threshold, skipped_holdings, pca if pca is not None else empty, empty, empty, empty, skipped)
 
 
-def skipped_result(share, threshold, skipped_holdings, reason, pca=None, logger=print):
+def skipped_result(share, threshold, skipped_holdings, reason, pca=None, logger=echo):
     """Return and print one skipped semantic result.
 
     Example:
@@ -535,8 +536,14 @@ def log_frame(logger, title, frame):
     """
     if not logger:
         return
-    logger(title)
-    logger("none" if frame is None or frame.empty else frame.to_string(index=False))
+    if frame is None or frame.empty:
+        logger(title)
+        logger("none")
+    elif logger is echo:
+        print_table(title, frame.round(4), index=False)
+    else:
+        logger(title)
+        logger(frame.to_string(index=False))
 
 
 def log_candidates(logger, candidates):
