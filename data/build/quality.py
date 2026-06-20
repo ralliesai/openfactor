@@ -17,12 +17,12 @@ def validate_snapshot(snapshot):
     if snapshot.specific_risk["ticker"].duplicated().any():
         raise ValueError("specific_risk has duplicate tickers")
 
-    factors = list(snapshot.factor_returns.columns)
+    factors = set(snapshot.factor_returns.columns)
     covariance = snapshot.factor_covariance
     if list(covariance.index) != list(covariance.columns):
         raise ValueError("factor_covariance index and columns must match")
-    if set(factors) != set(covariance.columns):
-        raise ValueError("factor_returns and factor_covariance factors must match")
+    if not set(covariance.columns).issubset(factors):
+        raise ValueError("factor_covariance has unknown factors")
 
 
 def require_columns(frame, columns, name):

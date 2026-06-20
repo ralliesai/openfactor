@@ -7,12 +7,12 @@ from openfactor.model.specific_risk import portfolio_specific_risk
 
 
 def factor_covariance(factor_returns):
-    """Return annualized factor covariance.
+    """Return annualized covariance for factors with full return history.
 
     Example:
-        daily factor returns with 1% volatility become about 2.5% variance.
+        a factor with missing return days stays out of covariance.
     """
-    return factor_returns.cov() * 252
+    return factor_returns.dropna(axis=1).cov() * 252
 
 
 def portfolio_factor_exposure(exposures, portfolio):
