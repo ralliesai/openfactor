@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from openfactor.io.snapshot import load_snapshot
+from openfactor.llm import discover_semantic_factors
 from openfactor.portfolio.report import portfolio_report
 
 
@@ -34,6 +35,14 @@ def main():
     print_frame("factor risk contribution", report["factor_risk"])
     print_frame("factor vs residual risk share", report["risk_share"])
     print_frame("portfolio total risk", report["total_risk"])
+    if args.semantic_discovery:
+        discover_semantic_factors(
+            portfolio,
+            snapshot,
+            threshold=args.semantic_threshold,
+            window=args.semantic_window,
+            batch_size=args.semantic_batch_size,
+        )
 
 
 def parse_args():
@@ -46,6 +55,10 @@ def parse_args():
     parser.add_argument("--universe", required=True)
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
+    parser.add_argument("--semantic-discovery", action="store_true")
+    parser.add_argument("--semantic-threshold", type=float, default=0.10)
+    parser.add_argument("--semantic-window", type=int, default=63)
+    parser.add_argument("--semantic-batch-size", type=int, default=50)
     return parser.parse_args()
 
 

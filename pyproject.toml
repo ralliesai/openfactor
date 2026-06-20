@@ -21,9 +21,15 @@ data = [
   "requests>=2.31",
   "tqdm>=4.66",
 ]
+llm = [
+  "openai>=1.100",
+]
 
 [project.scripts]
 openfactor = "openfactor.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"openfactor.llm.prompts" = ["*.txt"]

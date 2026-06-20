@@ -35,6 +35,7 @@ The model package loads:
 | `universe` | Model constituents |
 | `exposures` | Ticker-level factor exposures |
 | `factor_returns` | Recent realized factor returns |
+| `residual_returns` | Recent per-stock residual returns after common factors |
 | `factor_covariance` | Annualized factor covariance matrix |
 | `specific_risk` | Annualized stock-specific residual risk |
 | `metadata` | Universe name, model version, and model metadata |
@@ -126,6 +127,39 @@ factor               ...
 stock_specific       ...
 total                ...
 ```
+
+## Semantic Residual Discovery
+
+Semantic discovery is on-demand. The base model stays deterministic; the LLM is
+only called when a portfolio still has enough unexplained stock-specific risk to
+justify looking for a missing common risk.
+
+The bundled client uses the optional `llm` extra; institutions can pass their own
+client with a `complete_json(instructions, payload)` method.
+
+```python
+result = of.discover_semantic_factors(
+    portfolio,
+    snapshot,
+    threshold=0.10,  # 10% residual variance share; pass 0.20 for 20%
+)
+
+result.candidates
+result.accepted
+result.skipped
+```
+
+CLI:
+
+```bash
+openfactor --universe openfactor-us1000 --portfolio portfolio.csv --semantic-discovery
+```
+
+The LLM step returns candidate factor names and one-sentence descriptions,
+classifies binary membership across the full model universe with a progress bar,
+then keeps only candidates that actually reduce portfolio residual volatility.
+Candidates already explained by market, sector, industry, or existing style
+factors are rejected.
 
 ## Factor Coverage
 
