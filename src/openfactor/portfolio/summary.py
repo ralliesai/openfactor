@@ -9,7 +9,7 @@ from openfactor.model.risk import (
 from openfactor.portfolio.report import display_factor_name
 
 
-GROUP_LABELS = {"price": "Style", "reference": "Style", "sector": "Industry", "industry": "Industry"}
+GROUP_LABELS = {"price": "Style", "reference": "Style", "sector": "Sector", "industry": "Industry"}
 
 
 def risk_decomposition(portfolio, snapshot):
@@ -69,7 +69,7 @@ def decomposition_rows(fr, summary, common_share, specific_share):
     rows = [risk_row("Common Factor", "section", summary["common_factor"], summary["active_factor"], common_share)]
     if "market" in fr.index:
         rows.append(leaf(fr.loc["market"], "  ", "Market"))
-    for name in ["Style", "Industry"]:
+    for name in ["Style", "Sector", "Industry"]:
         sub = fr[fr["family"] == name]
         if sub.empty:
             continue
