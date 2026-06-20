@@ -82,7 +82,7 @@ def print_risk_summary(summary):
     for name in ["Total Risk", "Common Factor", "Specific"]:
         table.add_column(name, justify="right")
     table.add_row("Portfolio", pct(summary["total"]), pct(summary["common_factor"]), pct(summary["specific"]))
-    table.add_row("Active (TE)", pct(summary["tracking_error"]), pct(summary["active_factor"]), pct(summary["active_specific"]))
+    table.add_row("Active", pct(summary["tracking_error"]), pct(summary["active_factor"]), pct(summary["active_specific"]))
     console.print(table)
 
 

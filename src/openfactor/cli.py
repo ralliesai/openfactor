@@ -25,8 +25,8 @@ def main():
 
     summary, rows = risk_decomposition(portfolio, snapshot)
     console.rule(
-        f"[bold]OpenFactor[/bold]  {snapshot.universe_name}  "
-        f"as_of={snapshot.as_of_date}  tickers={len(snapshot.universe)}"
+        f"[bold]OpenFactor[/bold] · {snapshot.universe_name} · "
+        f"as of {snapshot.as_of_date} · {len(snapshot.universe)} tickers"
     )
     print_risk_summary(summary)
     print_risk_table(rows)
