@@ -9,7 +9,7 @@ from data.providers.finnhub import FinnhubClient, reported_financials
 from data.providers.fmp import FmpClient, analyst_estimates
 from data.providers.massive import MassiveClient
 from data.providers.massive.stocks import (
-    stock_bars,
+    stock_bars_with_unadjusted_close,
     stock_dividends,
     stock_short_interest,
     ticker_overview,
@@ -41,7 +41,7 @@ class ProviderDownloader:
 
         Example:
             downloader.prices(["AAPL"], "2024-01-01", "2024-01-31")
-            returns date, ticker, close, and volume rows.
+            returns adjusted close plus raw close for market caps.
         """
         rows = self.threaded_map(
             "prices",
@@ -248,7 +248,7 @@ class ProviderDownloader:
         """
         client = MassiveClient()
         try:
-            return stock_bars(client, ticker, start_date, end_date)
+            return stock_bars_with_unadjusted_close(client, ticker, start_date, end_date)
         finally:
             client.close()
 

@@ -13,6 +13,23 @@ def stock_bars(client, ticker, start_date, end_date, adjusted=True):
     return bars_to_frame(data.get("results", []), ticker.upper())
 
 
+def stock_bars_with_unadjusted_close(client, ticker, start_date, end_date):
+    """Download adjusted bars plus raw close for market-cap math.
+
+    Example:
+        stock_bars_with_unadjusted_close(client, "AAPL", "2024-01-01", "2024-01-31")
+        returns adjusted close and unadjusted_close columns.
+    """
+    adjusted = stock_bars(client, ticker, start_date, end_date, adjusted=True)
+    raw = stock_bars(client, ticker, start_date, end_date, adjusted=False)
+    if adjusted.empty:
+        adjusted["unadjusted_close"] = pd.Series(dtype=float)
+        return adjusted
+
+    raw = raw[["date", "ticker", "close"]].rename(columns={"close": "unadjusted_close"})
+    return adjusted.merge(raw, on=["date", "ticker"], how="left")
+
+
 def daily_market(client, date, adjusted=True, include_otc=False):
     """Download all US stock daily bars for one date.
 

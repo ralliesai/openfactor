@@ -35,9 +35,8 @@ def risk_decomposition(portfolio, snapshot):
         family=[family(factor, groups) for factor in fr.index],
         pct=fr["variance_contribution"] / total_var,
     )
-    rows = decomposition_rows(fr, factor_var / total_var, specific_var / total_var)
     summary = risk_summary(factor_var, specific, ar, active, snapshot)
-    return summary, rows
+    return decomposition_rows(fr, summary, factor_var / total_var, specific_var / total_var)
 
 
 def family(factor, groups):
@@ -61,13 +60,13 @@ def clean_label(factor):
     return name.split(": ", 1)[1] if name.startswith(("Sector: ", "Industry: ")) else name
 
 
-def decomposition_rows(fr, common_share, specific_share):
-    """Return nested decomposition rows from enriched factor risk.
+def decomposition_rows(fr, summary, common_share, specific_share):
+    """Return nested decomposition rows with summary risks embedded.
 
     Example:
-        a Style group row precedes its individual style factor rows.
+        Common Factor shows portfolio risk, active risk, and its risk share.
     """
-    rows = [node("Common Factor", "section", pct=common_share)]
+    rows = [risk_row("Common Factor", "section", summary["common_factor"], summary["active_factor"], common_share)]
     if "market" in fr.index:
         rows.append(leaf(fr.loc["market"], "  ", "Market"))
     for name in ["Style", "Industry"]:
@@ -77,8 +76,31 @@ def decomposition_rows(fr, common_share, specific_share):
         rows.append(node(f"  {name}", "group", pct=float(sub["pct"].sum())))
         for factor, row in sub.sort_values("pct", ascending=False).iterrows():
             rows.append(leaf(row, "    ", clean_label(factor)))
-    rows.append(node("Specific", "section", pct=specific_share))
-    rows.append(node("Total Risk", "total", pct=1.0))
+    rows.append(risk_row("Specific", "section", summary["specific"], summary["active_specific"], specific_share))
+    rows.append(risk_row("Total Risk", "total", summary["total"], summary["tracking_error"], 1.0))
+    return rows
+
+
+def risk_row(label, kind, volatility, active, pct):
+    """Return one summary risk row carrying portfolio and active volatility.
+
+    Example:
+        Total Risk shows the portfolio total and the tracking error.
+    """
+    return node(label, kind, active=active, volatility=volatility, pct=pct)
+
+
+def semantic_rows(result):
+    """Return footer rows for accepted semantic factors.
+
+    Example:
+        Retail Speculation appears under a Semantic Factors section.
+    """
+    if result is None or getattr(result, "accepted", None) is None or result.accepted.empty:
+        return []
+    rows = [node("Semantic Factors", "section")]
+    for row in result.accepted.itertuples(index=False):
+        rows.append(node("  " + row.name, "factor", pct=result.residual_share * float(row.idio_explained_percent) / 100))
     return rows
 
 

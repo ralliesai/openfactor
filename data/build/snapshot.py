@@ -122,7 +122,7 @@ class DatasetBuilder:
             self.downloader,
             self.previous_fundamentals,
         ).rows(matrix.tickers, sec_dates)
-        fundamentals = self.with_daily_market_caps(fundamentals, matrix)
+        fundamentals = self.with_daily_market_caps(fundamentals, prices)
         fundamentals = add_factor_inputs(
             fundamentals,
             matrix,
@@ -243,34 +243,45 @@ class DatasetBuilder:
         dates.update(year_ago(date) for date in model_dates)
         return sorted(dates)
 
-    def with_daily_market_caps(self, fundamentals, matrix):
+    def with_daily_market_caps(self, fundamentals, prices):
         """Attach daily PIT market caps to SEC rows.
 
         Example:
-            AAPL market_cap equals shares_outstanding times same-day close.
+            AAPL market_cap equals shares_outstanding times same-day raw close.
         """
         if fundamentals.empty:
             return fundamentals
 
         frame = fundamentals.copy()
         frame["as_of_date"] = pd.to_datetime(frame["as_of_date"]).dt.date.astype(str)
-        frame = frame.merge(self.close_frame(matrix), on=["as_of_date", "ticker"], how="left")
-        frame["market_cap"] = frame["shares_outstanding"] * frame["close"]
-        return frame.drop(columns=["close"])
+        frame = frame.merge(self.market_cap_price_frame(prices), on=["as_of_date", "ticker"], how="left")
+        frame["market_cap"] = frame["shares_outstanding"] * frame["market_cap_close"]
+        return frame.drop(columns=["market_cap_close"])
 
-    def close_frame(self, matrix):
-        """Return close prices as rows keyed by date and ticker.
+    def market_cap_price_frame(self, prices):
+        """Return raw closes keyed by date and ticker for market-cap math.
 
         Example:
-            close_frame(matrix) returns as_of_date, ticker, and close columns.
+            market_cap_price_frame(prices) returns as_of_date, ticker, and market_cap_close.
         """
-        return pd.DataFrame(
-            {
-                "as_of_date": np.repeat(matrix.dates, len(matrix.tickers)),
-                "ticker": np.tile(matrix.tickers, len(matrix.dates)),
-                "close": matrix.close.reshape(-1),
-            }
-        )
+        required = {"date", "ticker", "close", "unadjusted_close"}
+        missing = sorted(required - set(prices.columns))
+        if missing:
+            raise ValueError(f"prices missing columns for market-cap math: {missing}")
+
+        frame = prices[["date", "ticker", "close", "unadjusted_close"]].copy()
+        frame["date"] = pd.to_datetime(frame["date"]).dt.date.astype(str)
+        frame["ticker"] = frame["ticker"].astype(str)
+        frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+        frame["unadjusted_close"] = pd.to_numeric(frame["unadjusted_close"], errors="coerce")
+        missing_raw = frame["close"].notna() & frame["unadjusted_close"].isna()
+        if missing_raw.any():
+            sample = frame.loc[missing_raw, ["ticker", "date"]].head(10).to_dict("records")
+            raise ValueError(f"prices has adjusted close rows missing unadjusted_close: {sample}")
+
+        return frame.rename(columns={"date": "as_of_date", "unadjusted_close": "market_cap_close"})[
+            ["as_of_date", "ticker", "market_cap_close"]
+        ]
 
     def reference_as_of(self, fundamentals, as_of_date):
         """Return reference rows for one date.
@@ -348,7 +359,7 @@ class DatasetBuilder:
             "price_rows": int(len(prices)),
             "factor_count": int(len(factor_returns.columns)),
             "risk_window": RISK_WINDOW,
-            "market_cap_source": "sec_shares_outstanding_x_daily_adjusted_close",
+            "market_cap_source": "sec_shares_outstanding_x_daily_unadjusted_close",
         }
         if extra:
             data.update(extra)

@@ -71,36 +71,25 @@ def echo(message=""):
         console.print(text, markup=False, highlight=True)
 
 
-def print_risk_summary(summary):
-    """Print the portfolio vs active risk summary box.
-
-    Example:
-        portfolio total risk and tracking error appear side by side.
-    """
-    table = Table(title="Risk Summary", title_style="bold cyan", title_justify="left", header_style="bold magenta")
-    table.add_column("", style="cyan")
-    for name in ["Total Risk", "Common Factor", "Specific"]:
-        table.add_column(name, justify="right")
-    table.add_row("Portfolio", pct(summary["total"]), pct(summary["common_factor"]), pct(summary["specific"]))
-    table.add_row("Active", pct(summary["tracking_error"]), pct(summary["active_factor"]), pct(summary["active_specific"]))
-    console.print(table)
-
-
 def print_risk_table(rows):
-    """Print the nested factor risk decomposition.
+    """Print the whole risk report as one nested table.
 
     Example:
-        Common Factor, Style, Industry, Specific, and Total rows nest by indent.
+        summary risks, factor detail, and semantic factors share one table.
     """
-    table = Table(title="Factor Risk Decomposition", title_style="bold cyan", title_justify="left", header_style="bold magenta")
+    table = Table(title="Risk Decomposition", title_style="bold cyan", title_justify="left", header_style="bold magenta")
     table.add_column("Factor")
     for name in ["Exposure", "Active", "Volatility", "% Risk"]:
         table.add_column(name, justify="right")
     styles = {"section": "bold", "group": "bold cyan", "total": "bold"}
     for row in rows:
+        if row["kind"] in ("section",) and row["label"] == "Semantic Factors":
+            table.add_section()
         if row["kind"] == "total":
             table.add_section()
-        cells = [row["label"], num(row["exposure"]), num(row["active"]), pct(row["volatility"]), pct(row["pct"])]
+        summary = row["kind"] in ("section", "total")
+        active = pct(row["active"]) if summary else num(row["active"])
+        cells = [row["label"], num(row["exposure"]), active, pct(row["volatility"]), pct(row["pct"])]
         table.add_row(*cells, style=styles.get(row["kind"]))
     console.print(table)
 
