@@ -104,13 +104,13 @@ def discover_semantic_factors(
     stocks = stock_contexts(snapshot, universe)
     memberships = classify_members(llm, candidates, stocks, context, cache, batch_size, progress)
     write_semantic_cache(update_semantic_cache(cache, memberships), semantic_cache)
-    log_frame(logger, "semantic portfolio memberships", portfolio_memberships(memberships, weights))
+    log_portfolio_memberships(logger, memberships, weights)
 
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
     accepted, skipped = refit_candidates(candidates, memberships, universe_residuals, weights, min_reduction)
-    log_frame(logger, "semantic accepted factors", accepted)
+    log_factor_summary(logger, "semantic accepted factors", accepted)
+    log_factor_summary(logger, "semantic rejected factors", skipped)
     log_accepted_details(logger, accepted)
-    log_frame(logger, "semantic skipped factors", skipped)
     return SemanticDiscoveryResult(share, threshold, skipped_holdings, pca, candidates_frame, memberships, accepted, skipped)
 
 
@@ -564,6 +564,67 @@ def log_accepted_details(logger, accepted):
             logger("    description:")
             logger(wrapped_text(row.description, "      "))
         logger("")
+
+
+def log_portfolio_memberships(logger, memberships, weights):
+    """Print portfolio semantic memberships compactly.
+
+    Example:
+        a factor prints included and excluded portfolio tickers.
+    """
+    if not logger:
+        return
+    logger("semantic portfolio memberships")
+    rows = portfolio_memberships(memberships, weights)
+    if rows.empty:
+        logger("none")
+        return
+
+    for factor_id, group in rows.groupby("factor_id", sort=True):
+        in_names = sorted(group[group["member"] == 1]["ticker"])
+        out_names = sorted(group[group["member"] == 0]["ticker"])
+        parts = []
+        if in_names:
+            parts.append(f"in: {', '.join(in_names)}")
+        if out_names:
+            parts.append(f"out: {', '.join(out_names)}")
+        logger(f"[{factor_id}] " + (" | ".join(parts) if parts else "none"))
+    logger("")
+
+
+def log_factor_summary(logger, title, frame):
+    """Print accepted or rejected semantic factor decisions.
+
+    Example:
+        rejected factors print one compact risk-reduction line each.
+    """
+    if not logger:
+        return
+    logger(title)
+    if frame is None or frame.empty:
+        logger("none")
+        return
+
+    for row in frame.itertuples(index=False):
+        line = (
+            f"[{row.decision}] {row.name} "
+            f"members={row.members} "
+            f"risk={percent(row.before_risk)}->{percent(row.after_risk)} "
+            f"reduction={row.reduction_percent:.2f}%"
+        )
+        if getattr(row, "reason", ""):
+            line = f"{line} reason={row.reason}"
+        logger(line)
+    logger("")
+
+
+def percent(value):
+    """Return a compact percent string.
+
+    Example:
+        0.1234 becomes 12.34%.
+    """
+    return "nan" if not np.isfinite(value) else f"{100 * value:.2f}%"
 
 
 def wrapped(label, value):
