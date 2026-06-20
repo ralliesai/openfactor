@@ -622,9 +622,9 @@ def log_factor_summary(logger, title, frame):
         line = (
             f"[{row.decision}] {row.name} "
             f"members={row.members} "
-            f"idio_explained={row.idio_explained_percent:.2f}% "
-            f"risk={percent(row.before_risk)}->{percent(row.after_risk)} "
-            f"risk_reduction={row.risk_reduction_percent:.2f}%"
+            f"prev_idio=100.00% "
+            f"new_idio_left={idio_left(row.before_var, row.after_var)} "
+            f"idio_explained={row.idio_explained_percent:.2f}%"
         )
         if getattr(row, "reason", ""):
             line = f"{line} reason={row.reason}"
@@ -632,13 +632,15 @@ def log_factor_summary(logger, title, frame):
     logger("")
 
 
-def percent(value):
-    """Return a compact percent string.
+def idio_left(before_var, after_var):
+    """Return remaining idiosyncratic variance as a percent of the old level.
 
     Example:
-        0.1234 becomes 12.34%.
+        before=4 and after=3 returns 75.00%.
     """
-    return "nan" if not np.isfinite(value) else f"{100 * value:.2f}%"
+    if not np.isfinite(before_var) or before_var <= 0 or not np.isfinite(after_var):
+        return "nan"
+    return f"{100 * after_var / before_var:.2f}%"
 
 
 def variance(values):
