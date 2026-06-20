@@ -186,7 +186,7 @@ How it works:
 | Discovery | Uses residual PCA, deterministic exposures, and web search to propose missing common risks |
 | Guardrail | Rejects candidates already explained by market, sector, industry, or existing style factors |
 | Membership | Classifies each universe stock as binary `0/1`, not a fragile LLM score |
-| Refit | Keeps only candidates that reduce portfolio residual volatility |
+| Refit | Keeps candidates when idiosyncratic return variance is lower after adding them |
 | Cache | Reuses old binary labels and only asks the LLM for missing ticker/factor cells |
 
 The shared semantic cache lives in the Cloudflare public bucket:

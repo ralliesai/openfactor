@@ -65,7 +65,6 @@ def discover_semantic_factors(
     llm=None,
     threshold=DEFAULT_RESIDUAL_THRESHOLD,
     window=63,
-    min_reduction=0.10,
     batch_size=50,
     semantic_cache=DEFAULT_SEMANTIC_CACHE,
     progress=True,
@@ -107,7 +106,7 @@ def discover_semantic_factors(
     log_portfolio_memberships(logger, memberships, weights)
 
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
-    accepted, skipped = refit_candidates(candidates, memberships, universe_residuals, weights, min_reduction)
+    accepted, skipped = refit_candidates(candidates, memberships, universe_residuals, weights)
     log_factor_summary(logger, "semantic accepted factors", accepted)
     log_factor_summary(logger, "semantic rejected factors", skipped)
     log_accepted_details(logger, accepted)
@@ -240,17 +239,17 @@ def classify_members(llm, candidates, stocks, context, cache, batch_size, progre
     return clean_memberships(pd.DataFrame(rows, columns=["factor_id", "ticker", "member", "reason"]))
 
 
-def refit_candidates(candidates, memberships, residuals, weights, min_reduction):
-    """Keep candidates that reduce portfolio residual volatility.
+def refit_candidates(candidates, memberships, residuals, weights):
+    """Keep candidates that explain portfolio idiosyncratic returns.
 
     Example:
-        18% to 14% residual volatility is a 22.2% reduction and can be accepted.
+        any lower idiosyncratic variance after refit means the factor is accepted.
     """
     rows = []
     for factor in candidates:
         members = memberships[memberships["factor_id"] == factor.id]
         refit = semantic_refit(residuals, weights, members)
-        accepted = refit["reduction"] >= min_reduction
+        accepted = refit["after_var"] < refit["before_var"]
         rows.append(
             {
                 "factor_id": factor.id,
@@ -258,9 +257,12 @@ def refit_candidates(candidates, memberships, residuals, weights, min_reduction)
                 "description": factor.description,
                 "kind": factor.kind,
                 "members": int(members["member"].sum()) if not members.empty else 0,
-                "before_risk": refit["before"],
-                "after_risk": refit["after"],
-                "reduction_percent": 100 * refit["reduction"],
+                "idio_explained_percent": 100 * refit["idio_explained"],
+                "before_var": refit["before_var"],
+                "after_var": refit["after_var"],
+                "before_risk": refit["before_risk"],
+                "after_risk": refit["after_risk"],
+                "risk_reduction_percent": 100 * refit["risk_reduction"],
                 "decision": "accepted" if accepted else "rejected",
                 "reason": "" if accepted else refit["reason"],
             }
@@ -272,10 +274,10 @@ def refit_candidates(candidates, memberships, residuals, weights, min_reduction)
 
 
 def semantic_refit(residuals, weights, memberships):
-    """Return residual risk before and after adding one semantic membership.
+    """Return idiosyncratic variance explained by one semantic membership.
 
     Example:
-        member=1 rows plus portfolio names define the regression universe.
+        member=1 rows define a cross-sectional residual-return factor.
     """
     if memberships.empty:
         return refit_result(reason="no_memberships")
@@ -303,10 +305,21 @@ def semantic_refit(residuals, weights, memberships):
     w = np.array([weights[ticker] for ticker in portfolio_tickers], dtype=float)
     before_returns = clean[portfolio_tickers].to_numpy(dtype=float) @ w
     after_returns = after[portfolio_tickers].to_numpy(dtype=float) @ w
-    before = annualized_vol(before_returns)
-    after_value = annualized_vol(after_returns)
-    reduction = (before - after_value) / before if before > 0 else 0.0
-    return {"before": before, "after": after_value, "reduction": reduction, "reason": ""}
+    before_risk = annualized_vol(before_returns)
+    after_risk = annualized_vol(after_returns)
+    before_var = variance(before_returns)
+    after_var = variance(after_returns)
+    idio_explained = (before_var - after_var) / before_var if before_var > 0 else 0.0
+    risk_reduction = (before_risk - after_risk) / before_risk if before_risk > 0 else 0.0
+    return {
+        "idio_explained": idio_explained,
+        "before_var": before_var,
+        "after_var": after_var,
+        "before_risk": before_risk,
+        "after_risk": after_risk,
+        "risk_reduction": risk_reduction,
+        "reason": "",
+    }
 
 
 def deterministic_context(snapshot, weights):
@@ -596,7 +609,7 @@ def log_factor_summary(logger, title, frame):
     """Print accepted or rejected semantic factor decisions.
 
     Example:
-        rejected factors print one compact risk-reduction line each.
+        rejected factors print one compact idio-explained line each.
     """
     if not logger:
         return
@@ -609,8 +622,9 @@ def log_factor_summary(logger, title, frame):
         line = (
             f"[{row.decision}] {row.name} "
             f"members={row.members} "
+            f"idio_explained={row.idio_explained_percent:.2f}% "
             f"risk={percent(row.before_risk)}->{percent(row.after_risk)} "
-            f"reduction={row.reduction_percent:.2f}%"
+            f"risk_reduction={row.risk_reduction_percent:.2f}%"
         )
         if getattr(row, "reason", ""):
             line = f"{line} reason={row.reason}"
@@ -625,6 +639,15 @@ def percent(value):
         0.1234 becomes 12.34%.
     """
     return "nan" if not np.isfinite(value) else f"{100 * value:.2f}%"
+
+
+def variance(values):
+    """Return sample variance for a return series.
+
+    Example:
+        variance([0.01, -0.01]) returns a positive number.
+    """
+    return float(np.var(values, ddof=1)) if len(values) > 1 else 0.0
 
 
 def wrapped(label, value):
@@ -721,13 +744,29 @@ def annualized_vol(values):
     return float(np.std(values, ddof=1) * np.sqrt(252))
 
 
-def refit_result(before=np.nan, after=np.nan, reduction=0.0, reason=""):
+def refit_result(
+    idio_explained=0.0,
+    before_var=np.nan,
+    after_var=np.nan,
+    before_risk=np.nan,
+    after_risk=np.nan,
+    risk_reduction=0.0,
+    reason="",
+):
     """Return a standard refit result dict.
 
     Example:
         refit_result(reason="flat_membership") marks a rejected factor.
     """
-    return {"before": before, "after": after, "reduction": reduction, "reason": reason}
+    return {
+        "idio_explained": idio_explained,
+        "before_var": before_var,
+        "after_var": after_var,
+        "before_risk": before_risk,
+        "after_risk": after_risk,
+        "risk_reduction": risk_reduction,
+        "reason": reason,
+    }
 
 
 def safe_id(value):
