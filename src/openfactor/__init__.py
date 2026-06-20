@@ -10,7 +10,6 @@ from openfactor.llm import (
     DEFAULT_RESIDUAL_THRESHOLD,
     SemanticCandidate,
     SemanticDiscoveryResult,
-    SemanticLLMClient,
     discover_semantic_factors,
 )
 from openfactor.portfolio.report import portfolio_report
@@ -30,3 +29,16 @@ __all__ = [
     "load_snapshot",
     "portfolio_report",
 ]
+
+
+def __getattr__(name):
+    """Load optional LLM client only when requested.
+
+    Example:
+        openfactor.SemanticLLMClient imports the optional client.
+    """
+    if name == "SemanticLLMClient":
+        from openfactor.llm import SemanticLLMClient
+
+        return SemanticLLMClient
+    raise AttributeError(name)

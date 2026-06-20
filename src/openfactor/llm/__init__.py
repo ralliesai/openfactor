@@ -1,4 +1,3 @@
-from openfactor.llm.client import SemanticLLMClient
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
 from openfactor.llm.semantic import (
     DEFAULT_RESIDUAL_THRESHOLD,
@@ -15,3 +14,16 @@ __all__ = [
     "SemanticLLMClient",
     "discover_semantic_factors",
 ]
+
+
+def __getattr__(name):
+    """Load optional LLM client only when requested.
+
+    Example:
+        from openfactor.llm import SemanticLLMClient imports the optional client.
+    """
+    if name == "SemanticLLMClient":
+        from openfactor.llm.client import SemanticLLMClient
+
+        return SemanticLLMClient
+    raise AttributeError(name)

@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 from openfactor.io.snapshot import load_snapshot
-from openfactor.llm import discover_semantic_factors
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
 from openfactor.portfolio.report import portfolio_report
 
@@ -37,6 +36,8 @@ def main():
     print_frame("factor vs residual risk share", report["risk_share"])
     print_frame("portfolio total risk", report["total_risk"])
     if args.semantic_discovery:
+        from openfactor.llm import discover_semantic_factors
+
         discover_semantic_factors(
             portfolio,
             snapshot,
