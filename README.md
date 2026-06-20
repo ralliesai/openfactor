@@ -134,8 +134,12 @@ Semantic discovery is on-demand. The base model stays deterministic; the LLM is
 only called when a portfolio still has enough unexplained stock-specific risk to
 justify looking for a missing common risk.
 
-The bundled client uses the optional `llm` extra with web search; institutions
-can pass their own client with a `complete_json(instructions, payload)` method.
+The bundled client uses web search. Normal OpenFactor reports do not construct
+the LLM client or require `OPENAI_API_KEY`.
+
+```bash
+pip install git+https://github.com/ralliesai/openfactor.git
+```
 
 ```python
 result = of.discover_semantic_factors(
@@ -153,19 +157,60 @@ result.skipped
 CLI:
 
 ```bash
-openfactor --universe openfactor-us1000 --portfolio portfolio.csv --semantic-discovery
+openfactor \
+  --universe openfactor-us1000 \
+  --portfolio portfolio.csv \
+  --semantic-discovery \
+  --semantic-threshold 0.10 \
+  --semantic-window 63 \
+  --semantic-batch-size 25
 ```
 
-The LLM step returns candidate factor names and one-sentence descriptions,
-classifies binary membership across the full model universe with a progress bar,
-then keeps only candidates that actually reduce portfolio residual volatility.
-Candidates already explained by market, sector, industry, or existing style
-factors are rejected.
+Environment:
 
-`semantic_factors.csv` lives in the Cloudflare public bucket: `ticker` plus one
-binary column per semantic factor. Existing labels are reused, and later larger
-runs only fill missing ticker/factor cells. Writing the shared cache requires
-`OPENFACTOR_R2_*` credentials; pass a local path only for private experiments.
+| Variable | Required For |
+| --- | --- |
+| `OPENAI_API_KEY` | LLM discovery and membership classification |
+| `OPENFACTOR_R2_ACCOUNT_ID` | Writing the shared public semantic cache |
+| `OPENFACTOR_R2_ACCESS_KEY_ID` | Writing the shared public semantic cache |
+| `OPENFACTOR_R2_SECRET_ACCESS_KEY` | Writing the shared public semantic cache |
+| `OPENFACTOR_SEMANTIC_MODEL` | Optional model override |
+| `OPENFACTOR_SEMANTIC_TIMEOUT` | Optional per-request timeout override |
+
+How it works:
+
+| Step | Behavior |
+| --- | --- |
+| Trigger | Runs only when `--semantic-discovery` is passed or `discover_semantic_factors()` is called |
+| Residual window | Uses recent residual-return history, default `63` trading days |
+| Discovery | Uses residual PCA, deterministic exposures, and web search to propose missing common risks |
+| Guardrail | Rejects candidates already explained by market, sector, industry, or existing style factors |
+| Membership | Classifies each universe stock as binary `0/1`, not a fragile LLM score |
+| Refit | Keeps only candidates that reduce portfolio residual volatility |
+| Cache | Reuses old binary labels and only asks the LLM for missing ticker/factor cells |
+
+The shared semantic cache lives in the Cloudflare public bucket:
+
+[semantic_factors.csv](https://openfactor-data.rallies.ai/semantic_factors.csv)
+
+Shape:
+
+```csv
+ticker,ai_infrastructure,retail_flow
+NVDA,1,0
+GME,0,1
+AAPL,0,0
+```
+
+If yesterday's cache covered 1000 stocks and today's universe has 1001, the
+existing 1000 labels are reused and only the new ticker is classified. Rows for
+tickers that leave the universe can stay in the cache; they are harmless and
+useful if the ticker re-enters later.
+
+Institutions can also pass their own client with a
+`complete_json(instructions, payload)` method. Pass a local `semantic_cache`
+path only for private experiments; the default shared cache is the public R2
+object.
 
 ## Factor Coverage
 
@@ -490,6 +535,7 @@ Current public files:
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
 | Specific risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
+| Semantic cache | [semantic_factors.csv](https://openfactor-data.rallies.ai/semantic_factors.csv) |
 
 The runtime loader reads the public model files and returns:
 

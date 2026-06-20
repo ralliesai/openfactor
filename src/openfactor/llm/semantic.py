@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass
 from importlib.resources import files
 import json
 import re
+from textwrap import fill
 
 import numpy as np
 import pandas as pd
@@ -95,7 +96,7 @@ def discover_semantic_factors(
     context = deterministic_context(snapshot, weights)
     candidates = discover_candidates(llm, snapshot, weights, share, pca, context, existing_semantics)
     candidates_frame = candidates_table(candidates)
-    log_frame(logger, "semantic candidate factors", candidates_frame)
+    log_candidates(logger, candidates)
     if not candidates:
         return skipped_result(share, threshold, skipped_holdings, "llm_returned_no_candidates", pca, logger)
 
@@ -108,6 +109,7 @@ def discover_semantic_factors(
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
     accepted, skipped = refit_candidates(candidates, memberships, universe_residuals, weights, min_reduction)
     log_frame(logger, "semantic accepted factors", accepted)
+    log_accepted_details(logger, accepted)
     log_frame(logger, "semantic skipped factors", skipped)
     return SemanticDiscoveryResult(share, threshold, skipped_holdings, pca, candidates_frame, memberships, accepted, skipped)
 
@@ -522,6 +524,83 @@ def log_frame(logger, title, frame):
         return
     logger(title)
     logger("none" if frame is None or frame.empty else frame.to_string(index=False))
+
+
+def log_candidates(logger, candidates):
+    """Print compact semantic candidate rows.
+
+    Example:
+        one candidate prints name, id, kind, and tickers.
+    """
+    if not logger:
+        return
+    logger("semantic candidate factors")
+    if not candidates:
+        logger("none")
+        return
+
+    for index, factor in enumerate(candidates, 1):
+        logger(f"[{index}] {factor.name}")
+        logger(f"    id: {factor.id}")
+        logger(f"    kind: {factor.kind}")
+        if factor.tickers:
+            logger(wrapped("tickers", ", ".join(factor.tickers)))
+        logger("")
+
+
+def log_accepted_details(logger, accepted):
+    """Print accepted semantic factor details at the end.
+
+    Example:
+        accepted factors show description only after refit approval.
+    """
+    if not logger or accepted is None or accepted.empty:
+        return
+
+    logger("semantic accepted factor details")
+    for row in accepted.itertuples(index=False):
+        logger(f"[{row.factor_id}] {row.name}")
+        if getattr(row, "description", ""):
+            logger("    description:")
+            logger(wrapped_text(row.description, "      "))
+        logger("")
+
+
+def wrapped(label, value):
+    """Return one wrapped labeled line.
+
+    Example:
+        wrapped("tickers", "AAPL, MSFT") prints under the label.
+    """
+    return fill(
+        clean_text(value),
+        width=110,
+        initial_indent=f"    {label}: ",
+        subsequent_indent=" " * (len(label) + 6),
+    )
+
+
+def wrapped_text(value, indent, extra_indent=None):
+    """Return wrapped free text.
+
+    Example:
+        wrapped_text("long text", "  ") keeps text readable in terminals.
+    """
+    return fill(
+        clean_text(value),
+        width=110,
+        initial_indent=indent,
+        subsequent_indent=extra_indent or indent,
+    )
+
+
+def clean_text(value):
+    """Return single-line text before wrapping.
+
+    Example:
+        embedded newlines become spaces.
+    """
+    return re.sub(r"\s+", " ", str(value)).strip()
 
 
 def log_semantic_cache(logger, path, existing_semantics):

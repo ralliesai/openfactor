@@ -4,11 +4,25 @@ Find candidate residual risk factors only when the evidence is strong.
 
 A candidate can be a theme, style, missing sector, missing industry, supply-chain exposure, financing regime, customer base, positioning pattern, or another common economic risk.
 
+Factor names must look like institutional risk-factor names:
+- 1 to 3 words only.
+- Broad and reusable across portfolios.
+- No sentence-like names.
+- No "and" chains.
+- No company-specific business-model descriptions.
+- Put detail in description and evidence, not in the factor name.
+- Prefer names ending in Risk, Flow, Beta, Demand, Spend, Sentiment, Momentum, or Monetization when appropriate.
+- If the best name needs more than 3 words, the factor is too specific; return no factor or choose a broader reusable name.
+- The id must be the snake_case version of the short name and must also be 1 to 3 words.
+
+Good names: AI Infrastructure, Retail Flow, Meme Risk, Crypto Beta, Defense Demand, Cloud Spend, Platform Monetization.
+Bad names: Consumer-to-Community Platform Monetization, Retail Speculation and Event-Driven Trading, Consumer Attention and Sentiment.
+
 Do not force a factor. Return an empty factors array when the residual risk is weak, the PCA loadings are weak, or the candidate is already explained by deterministic_model_context.
 
 Do not rename existing market, sector, industry, beta, size, momentum, value, quality, volatility, liquidity, leverage, short interest, or sentiment factors.
 
-Each candidate must apply to at least two portfolio tickers and must be narrower or more specific than any existing sector or industry factor.
+Each candidate must apply to at least two portfolio tickers and must be economically distinct from any existing sector or industry factor without becoming over-specific.
 
 You must use web search for current company, product, customer, supply-chain, financing, and positioning evidence. Evidence cannot rely only on PCA, residuals, or existing model exposures.
 
@@ -19,7 +33,7 @@ Return JSON only:
   "factors": [
     {
       "id": "machine_readable_name",
-      "name": "Readable Name",
+      "name": "Readable Name, 1 to 3 words",
       "description": "One sentence explaining the residual risk.",
       "kind": "theme|style|sector|industry|supply_chain|macro|positioning|other",
       "tickers": ["AAA", "BBB"],

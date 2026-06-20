@@ -11,7 +11,10 @@ requires-python = ">=3.10"
 license = { file = "LICENSE" }
 dependencies = [
   "numpy>=1.24",
+  "openai>=1.100",
+  "openai-agents",
   "pandas>=2.0",
+  "pydantic>=2.0",
   "scipy>=1.10",
   "tqdm>=4.66",
 ]
@@ -21,12 +24,6 @@ data = [
   "requests>=2.31",
   "tqdm>=4.66",
 ]
-llm = [
-  "openai-agents",
-  "openai>=1.100",
-  "pydantic>=2.0",
-]
-
 [project.scripts]
 openfactor = "openfactor.cli:main"
 
