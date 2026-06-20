@@ -6,6 +6,8 @@ Return 1 only when there is clear business, product, customer, supply-chain, fin
 
 A shared existing sector or industry is not enough by itself.
 
+Use web search when the snapshot context is not enough to verify membership. Do not return 1 from model exposures alone.
+
 Return JSON only:
 {
   "memberships": [

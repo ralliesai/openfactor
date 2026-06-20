@@ -134,14 +134,15 @@ Semantic discovery is on-demand. The base model stays deterministic; the LLM is
 only called when a portfolio still has enough unexplained stock-specific risk to
 justify looking for a missing common risk.
 
-The bundled client uses the optional `llm` extra; institutions can pass their own
-client with a `complete_json(instructions, payload)` method.
+The bundled client uses the optional `llm` extra with web search; institutions
+can pass their own client with a `complete_json(instructions, payload)` method.
 
 ```python
 result = of.discover_semantic_factors(
     portfolio,
     snapshot,
     threshold=0.10,  # 10% residual variance share; pass 0.20 for 20%
+    semantic_cache="r2://openfactor-public/semantic_factors.csv",
 )
 
 result.candidates
@@ -160,6 +161,11 @@ classifies binary membership across the full model universe with a progress bar,
 then keeps only candidates that actually reduce portfolio residual volatility.
 Candidates already explained by market, sector, industry, or existing style
 factors are rejected.
+
+`semantic_factors.csv` lives in the Cloudflare public bucket: `ticker` plus one
+binary column per semantic factor. Existing labels are reused, and later larger
+runs only fill missing ticker/factor cells. Writing the shared cache requires
+`OPENFACTOR_R2_*` credentials; pass a local path only for private experiments.
 
 ## Factor Coverage
 

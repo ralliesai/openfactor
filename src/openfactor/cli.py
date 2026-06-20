@@ -5,6 +5,7 @@ import pandas as pd
 
 from openfactor.io.snapshot import load_snapshot
 from openfactor.llm import discover_semantic_factors
+from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
 from openfactor.portfolio.report import portfolio_report
 
 
@@ -42,6 +43,7 @@ def main():
             threshold=args.semantic_threshold,
             window=args.semantic_window,
             batch_size=args.semantic_batch_size,
+            semantic_cache=args.semantic_cache,
         )
 
 
@@ -59,6 +61,7 @@ def parse_args():
     parser.add_argument("--semantic-threshold", type=float, default=0.10)
     parser.add_argument("--semantic-window", type=int, default=63)
     parser.add_argument("--semantic-batch-size", type=int, default=50)
+    parser.add_argument("--semantic-cache", default=DEFAULT_SEMANTIC_CACHE)
     return parser.parse_args()
 
 

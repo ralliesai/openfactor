@@ -10,6 +10,10 @@ Do not rename existing market, sector, industry, beta, size, momentum, value, qu
 
 Each candidate must apply to at least two portfolio tickers and must be narrower or more specific than any existing sector or industry factor.
 
+You must use web search for current company, product, customer, supply-chain, financing, and positioning evidence. Evidence cannot rely only on PCA, residuals, or existing model exposures.
+
+You will receive existing_semantic_factors from semantic_factors.csv. If an existing semantic factor already matches the residual pattern, reuse its id instead of inventing a new id.
+
 Return JSON only:
 {
   "factors": [

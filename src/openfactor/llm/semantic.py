@@ -7,6 +7,14 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from openfactor.llm.cache import (
+    DEFAULT_SEMANTIC_CACHE,
+    cached_memberships,
+    read_semantic_cache,
+    semantic_factor_context,
+    update_semantic_cache,
+    write_semantic_cache,
+)
 from openfactor.model.exposures import model_exposure_matrix
 from openfactor.portfolio.report import portfolio_report
 
@@ -58,6 +66,7 @@ def discover_semantic_factors(
     window=63,
     min_reduction=0.10,
     batch_size=50,
+    semantic_cache=DEFAULT_SEMANTIC_CACHE,
     progress=True,
     logger=print,
 ):
@@ -80,8 +89,11 @@ def discover_semantic_factors(
         return skipped_result(share, threshold, skipped_holdings, "residual_below_threshold", pca, logger)
 
     llm = llm or default_llm()
+    cache = read_semantic_cache(semantic_cache)
+    existing_semantics = semantic_factor_context(cache)
+    log_semantic_cache(logger, semantic_cache, existing_semantics)
     context = deterministic_context(snapshot, weights)
-    candidates = discover_candidates(llm, snapshot, weights, share, pca, context)
+    candidates = discover_candidates(llm, snapshot, weights, share, pca, context, existing_semantics)
     candidates_frame = candidates_table(candidates)
     log_frame(logger, "semantic candidate factors", candidates_frame)
     if not candidates:
@@ -89,7 +101,8 @@ def discover_semantic_factors(
 
     universe = snapshot.universe["ticker"].dropna().astype(str).tolist()
     stocks = stock_contexts(snapshot, universe)
-    memberships = classify_members(llm, candidates, stocks, context, batch_size, progress)
+    memberships = classify_members(llm, candidates, stocks, context, cache, batch_size, progress)
+    write_semantic_cache(update_semantic_cache(cache, memberships), semantic_cache)
     log_frame(logger, "semantic portfolio memberships", portfolio_memberships(memberships, weights))
 
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
@@ -177,7 +190,7 @@ def residual_pca(residuals, weights, components=3):
     return clean, pd.DataFrame(rows), explained[:components]
 
 
-def discover_candidates(llm, snapshot, weights, share, pca, context):
+def discover_candidates(llm, snapshot, weights, share, pca, context, existing_semantics=None):
     """Ask the LLM for candidate residual factors.
 
     Example:
@@ -188,13 +201,14 @@ def discover_candidates(llm, snapshot, weights, share, pca, context):
         "residual_share": share,
         "pca_loadings": pca.round(4).to_dict("records"),
         "deterministic_model_context": context,
+        "existing_semantic_factors": existing_semantics or [],
         "portfolio_stocks": stock_contexts(snapshot, list(weights)),
     }
     data = llm_json(llm, prompt("discovery.txt"), payload)
     return [candidate(row) for row in json_rows(data, "factors")]
 
 
-def classify_members(llm, candidates, stocks, context, batch_size, progress):
+def classify_members(llm, candidates, stocks, context, cache, batch_size, progress):
     """Classify semantic factor membership across the snapshot universe.
 
     Example:
@@ -204,7 +218,14 @@ def classify_members(llm, candidates, stocks, context, batch_size, progress):
     instructions = prompt("scoring.txt")
     for factor in candidates:
         bar = tqdm(total=len(stocks), desc=f"semantic member {factor.id}", unit="ticker", dynamic_ncols=True, disable=not progress)
-        for batch in batches(stocks, batch_size):
+        cached = cached_memberships(cache, factor.id, [stock["ticker"] for stock in stocks])
+        rows += cached.to_records(index=False).tolist()
+        if not cached.empty:
+            bar.update(len(cached))
+
+        cached_tickers = set(cached["ticker"]) if not cached.empty else set()
+        missing = [stock for stock in stocks if stock["ticker"] not in cached_tickers]
+        for batch in batches(missing, batch_size):
             payload = {
                 "factor": asdict(factor),
                 "deterministic_model_context": context,
@@ -214,7 +235,7 @@ def classify_members(llm, candidates, stocks, context, batch_size, progress):
             rows += membership_rows(factor.id, json_rows(data, "memberships"))
             bar.update(len(batch))
         bar.close()
-    return pd.DataFrame(rows, columns=["factor_id", "ticker", "member", "reason"])
+    return clean_memberships(pd.DataFrame(rows, columns=["factor_id", "ticker", "member", "reason"]))
 
 
 def refit_candidates(candidates, memberships, residuals, weights, min_reduction):
@@ -344,7 +365,7 @@ def default_llm():
     Example:
         default_llm() uses OPENFACTOR_SEMANTIC_MODEL when set.
     """
-    from openfactor.llm.openai import SemanticLLMClient
+    from openfactor.llm.client import SemanticLLMClient
 
     return SemanticLLMClient()
 
@@ -376,6 +397,41 @@ def membership_rows(factor_id, rows):
     for row in rows:
         output.append((factor_id, str(row.get("ticker", "")), clean_member(row.get("member")), str(row.get("reason", ""))))
     return output
+
+
+def clean_memberships(rows):
+    """Return one binary membership row per factor and ticker.
+
+    Example:
+        duplicate HOOD rows with member 1 and 0 become one member 1 row.
+    """
+    if rows.empty:
+        return rows
+    rows = rows[rows["ticker"].astype(str).str.strip() != ""].copy()
+    rows["ticker"] = rows["ticker"].astype(str)
+    rows["member"] = rows["member"].astype(int).clip(0, 1)
+    return (
+        rows.groupby(["factor_id", "ticker"], as_index=False)
+        .agg(
+            member=("member", "max"),
+            reason=("reason", join_reasons),
+        )
+        .sort_values(["factor_id", "ticker"])
+    )
+
+
+def join_reasons(values):
+    """Return a compact reason string from duplicate LLM rows.
+
+    Example:
+        repeated reasons are shown once.
+    """
+    reasons = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in reasons:
+            reasons.append(text)
+    return " / ".join(reasons[:2])
 
 
 def json_rows(data, key):
@@ -466,6 +522,17 @@ def log_frame(logger, title, frame):
         return
     logger(title)
     logger("none" if frame is None or frame.empty else frame.to_string(index=False))
+
+
+def log_semantic_cache(logger, path, existing_semantics):
+    """Print the semantic cache summary.
+
+    Example:
+        semantic cache factors=3 tells the LLM has reusable labels.
+    """
+    if not logger:
+        return
+    logger(f"semantic cache path={path} factors={len(existing_semantics)}")
 
 
 def prompt(name):
