@@ -8,6 +8,8 @@ A shared existing sector or industry is not enough by itself.
 
 Use web search when the snapshot context is not enough to verify membership. Do not return 1 from model exposures alone.
 
+If you do not recognize a ticker or company, research it before deciding. Do not guess from the ticker symbol.
+
 Return JSON only:
 {
   "memberships": [
