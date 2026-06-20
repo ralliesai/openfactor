@@ -430,6 +430,7 @@ The public model is stored as inspectable CSV and JSON files:
 exposures.csv
 details/exposures_long.csv
 factor_returns.csv
+residual_returns.csv
 factor_covariance.csv
 specific_risk.csv
 universe.csv
@@ -445,6 +446,7 @@ Current public files:
 | Exposures | [exposures.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/exposures.csv) |
 | Long exposures | [details/exposures_long.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/details/exposures_long.csv) |
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
+| Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
 | Specific risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
@@ -455,6 +457,7 @@ The runtime loader reads the public model files and returns:
 snapshot.universe
 snapshot.exposures
 snapshot.factor_returns
+snapshot.residual_returns
 snapshot.factor_covariance
 snapshot.specific_risk
 snapshot.metadata

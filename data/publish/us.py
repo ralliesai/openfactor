@@ -26,6 +26,7 @@ PUBLIC_FILES = [
     "exposures.csv",
     "details/exposures_long.csv",
     "factor_returns.csv",
+    "residual_returns.csv",
     "factor_covariance.csv",
     "specific_risk.csv",
     "universe.csv",

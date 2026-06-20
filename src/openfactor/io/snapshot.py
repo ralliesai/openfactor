@@ -13,6 +13,7 @@ SNAPSHOT_FILES = {
     "exposures": "exposures.csv",
     "exposures_detail": "details/exposures_long.csv",
     "factor_returns": "factor_returns.csv",
+    "residual_returns": "residual_returns.csv",
     "factor_covariance": "factor_covariance.csv",
     "specific_risk": "specific_risk.csv",
     "universe": "universe.csv",
@@ -32,6 +33,7 @@ class Snapshot:
     universe_name: str
     exposures: pd.DataFrame
     factor_returns: pd.DataFrame
+    residual_returns: pd.DataFrame
     factor_covariance: pd.DataFrame
     specific_risk: pd.DataFrame
     universe: pd.DataFrame
@@ -75,6 +77,7 @@ def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None):
             with_query(f"{prefix}/{SNAPSHOT_FILES['factor_returns']}", cache_bust),
             index_col=0,
         ),
+        residual_returns=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['residual_returns']}", cache_bust)),
         factor_covariance=read_csv(
             with_query(f"{prefix}/{SNAPSHOT_FILES['factor_covariance']}", cache_bust),
             index_col=0,

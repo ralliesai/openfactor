@@ -181,6 +181,7 @@ class DatasetBuilder:
             universe_name=self.universe_name,
             exposures=exposures,
             factor_returns=factor_returns,
+            residual_returns=residuals,
             factor_covariance=factor_covariance(factor_returns),
             specific_risk=specific_risk_from_residuals(residuals),
             universe=self.universe_frame(matrix.tickers, matrix.dates[-1]),

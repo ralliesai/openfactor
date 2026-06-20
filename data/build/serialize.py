@@ -74,6 +74,7 @@ def snapshot_csvs(snapshot):
         (SNAPSHOT_FILES["exposures"], spreadsheet_csv(wide_exposures(snapshot.exposures))),
         (SNAPSHOT_FILES["exposures_detail"], spreadsheet_csv(detail_exposures(snapshot.exposures))),
         (SNAPSHOT_FILES["factor_returns"], spreadsheet_csv(sorted_columns(snapshot.factor_returns), True, "date")),
+        (SNAPSHOT_FILES["residual_returns"], spreadsheet_csv(residual_returns_file(snapshot.residual_returns))),
         (
             SNAPSHOT_FILES["factor_covariance"],
             spreadsheet_csv(sorted_covariance(snapshot.factor_covariance), True, "factor"),
@@ -153,6 +154,24 @@ def sorted_covariance(frame):
     """
     factors = sorted(set(frame.index) & set(frame.columns))
     return frame.reindex(index=factors, columns=factors)
+
+
+def residual_returns_file(residuals):
+    """Return residual returns as one row per date and ticker.
+
+    Example:
+        residuals has dates as rows and tickers as columns.
+        AAPL=0.01 and MSFT=NaN on 2026-06-18 returns one AAPL row.
+    """
+    frame = residuals.copy()
+    frame.index.name = "date"
+    return (
+        frame.reset_index()
+        .melt(id_vars="date", var_name="ticker", value_name="residual_return")
+        .dropna(subset=["residual_return"])
+        .sort_values(["date", "ticker"])
+        .reset_index(drop=True)
+    )
 
 
 def sort_tickers(frame):
