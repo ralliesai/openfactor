@@ -125,16 +125,94 @@ def weighted_lstsq(x, y, weights):
     return np.linalg.lstsq(x * root[:, None], y * root, rcond=None)[0]
 
 
-def sector_weights(sectors, weights):
-    """Return market-cap weights for sector constraints.
+def constrained_lstsq(x, y, weights, constraints):
+    """Solve weighted least squares with exact zero-sum constraints.
 
     Example:
-        if Technology is 80% of fitted market cap, its sector weight is 0.80.
+        constraints=[[0, 1, 1]] forces the last two coefficients to sum to 0.
     """
-    totals = sectors.T @ weights
-    if totals.sum() == 0:
-        return np.full(sectors.shape[1], 1 / sectors.shape[1])
-    return totals / totals.sum()
+    if len(constraints) == 0:
+        return weighted_lstsq(x, y, weights)
+
+    weights = np.asarray(weights, dtype=float)
+    weights = weights / weights.mean()
+    root = np.sqrt(weights)
+    x_weighted = x * root[:, None]
+    y_weighted = y * root
+    zero = np.zeros((len(constraints), len(constraints)))
+    left = np.block(
+        [
+            [x_weighted.T @ x_weighted, constraints.T],
+            [constraints, zero],
+        ]
+    )
+    right = np.r_[x_weighted.T @ y_weighted, np.zeros(len(constraints))]
+    return np.linalg.lstsq(left, right, rcond=None)[0][: x.shape[1]]
+
+
+def group_columns(columns, groups, group):
+    """Return factor columns for one group.
+
+    Example:
+        group_columns(["beta", "sector:Tech"], groups, "sector")
+        returns ["sector:Tech"].
+    """
+    return [column for column in columns if groups.get(column) == group]
+
+
+def classification_constraints(x_frame, groups, weights):
+    """Return market-relative sector and industry constraints.
+
+    Example:
+        sector returns sum to zero across the market.
+        industry returns sum to zero inside their parent sector.
+    """
+    columns = list(x_frame.columns)
+    sectors = group_columns(columns, groups, "sector")
+    industries = group_columns(columns, groups, "industry")
+    rows = []
+
+    if sectors:
+        rows.append(constraint_row(x_frame, sectors, weights))
+
+    if sectors and industries:
+        parents = industry_parent_sectors(x_frame, sectors, industries, weights)
+        if not parents.empty:
+            for _, group in parents.groupby("sector"):
+                rows.append(constraint_row(x_frame, list(group["industry"]), weights))
+
+    return np.asarray([row for row in rows if np.any(row)], dtype=float)
+
+
+def constraint_row(x_frame, columns, weights):
+    """Return one cap-weighted zero-sum row for selected columns.
+
+    Example:
+        columns=["sector:Tech", "sector:Bank"] constrains their weighted return.
+    """
+    row = np.zeros(len(x_frame.columns))
+    totals = x_frame[columns].multiply(weights, axis=0).sum()
+    for column, total in totals.items():
+        row[x_frame.columns.get_loc(column)] = total
+    scale = np.abs(row).sum()
+    return row if scale == 0 else row / scale
+
+
+def industry_parent_sectors(x_frame, sectors, industries, weights):
+    """Return each industry's dominant sector.
+
+    Example:
+        industry:Semiconductors maps to sector:Technology.
+    """
+    rows = []
+    for industry in industries:
+        members = x_frame[industry].to_numpy(dtype=float) > 0
+        if not members.any():
+            continue
+        sector_weights = x_frame.loc[members, sectors].multiply(weights[members], axis=0).sum()
+        if sector_weights.sum() > 0:
+            rows.append({"industry": industry, "sector": sector_weights.idxmax()})
+    return pd.DataFrame(rows)
 
 
 def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_limit=5.0):
@@ -142,7 +220,8 @@ def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_li
 
     Example:
         two sectors plus beta produce market, sector, and beta returns.
-        Sector returns are market-cap weighted to sum to zero.
+        Sector returns sum to zero across the market.
+        Industry returns sum to zero inside each parent sector.
     """
     groups = groups or {}
     x_frame = pd.DataFrame(x_frame).astype(float)
@@ -150,43 +229,38 @@ def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_li
     returns = winsorize(returns, return_limit)
     weights = np.ones(len(returns)) if market_caps is None else np.asarray(market_caps, dtype=float)
 
-    sector_cols = [col for col in x_frame.columns if groups.get(col) == "sector"]
-    style_cols = [col for col in x_frame.columns if col not in sector_cols]
+    columns = list(x_frame.columns)
+    sector_cols = group_columns(columns, groups, "sector")
+    factor_cols = sector_cols + [column for column in columns if column not in sector_cols]
+    design = pd.concat([pd.Series(1.0, index=x_frame.index, name=MARKET_FACTOR), x_frame[factor_cols]], axis=1)
     sectors = x_frame[sector_cols].to_numpy(dtype=float) if sector_cols else np.empty((len(x_frame), 0))
-    styles = x_frame[style_cols].to_numpy(dtype=float) if style_cols else np.empty((len(x_frame), 0))
-
     sector_ok = sectors.sum(axis=1) > 0 if sector_cols else np.ones(len(x_frame), dtype=bool)
-    x = np.column_stack([np.ones(len(x_frame)), sectors[:, :-1], styles])
     good = (
         np.isfinite(returns)
         & np.isfinite(weights)
         & (weights > 0)
         & sector_ok
-        & np.isfinite(x).all(axis=1)
+        & np.isfinite(design.to_numpy(dtype=float)).all(axis=1)
     )
 
-    names = [MARKET_FACTOR] + sector_cols + style_cols
+    names = [MARKET_FACTOR] + factor_cols
     factor_returns = pd.Series(np.nan, index=names)
     residuals = pd.Series(np.nan, index=x_frame.index)
-    if good.sum() <= x.shape[1]:
+    constraints = classification_constraints(x_frame.loc[good, factor_cols], groups, weights[good])
+    constraints = np.column_stack([np.zeros(len(constraints)), constraints])
+    if good.sum() <= design.shape[1] - len(constraints):
         return factor_returns, residuals
 
-    fitted = weighted_lstsq(x[good], returns[good], weights[good])
-    style_start = 1 + max(len(sector_cols) - 1, 0)
-
-    if sector_cols:
-        raw_sector = np.r_[fitted[1:style_start], 0.0]
-        shift = sector_weights(sectors[good], weights[good]) @ raw_sector
-        factor_returns[MARKET_FACTOR] = fitted[0] + shift
-        factor_returns.loc[sector_cols] = raw_sector - shift
-    else:
-        factor_returns[MARKET_FACTOR] = fitted[0]
-
-    factor_returns.loc[style_cols] = fitted[style_start:]
+    fitted = constrained_lstsq(
+        design.loc[good].to_numpy(dtype=float),
+        returns[good],
+        weights[good],
+        constraints,
+    )
+    factor_returns.loc[names] = fitted
     predicted = (
         factor_returns[MARKET_FACTOR]
-        + sectors @ factor_returns.loc[sector_cols].fillna(0.0).to_numpy()
-        + styles @ factor_returns.loc[style_cols].fillna(0.0).to_numpy()
+        + x_frame[factor_cols].to_numpy(dtype=float) @ factor_returns.loc[factor_cols].fillna(0.0).to_numpy()
     )
     residuals.iloc[good] = returns[good] - predicted[good]
     return factor_returns, residuals
