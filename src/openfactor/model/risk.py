@@ -73,6 +73,10 @@ def factor_risk_report_from_covariance(exposures, portfolio, covariance):
         covariance.loc["beta", "beta"] = 0.04 and beta exposure is 1.0
         gives about 20% factor risk.
     """
+    missing = missing_model_exposures(exposures, covariance)
+    if missing:
+        raise ValueError(f"factor_covariance has factors missing exposures: {missing[:10]}")
+
     exposure = portfolio_factor_exposure(exposures, portfolio).dropna()
     factors = exposure.index.intersection(covariance.index)
     exposure = exposure.reindex(factors)
@@ -100,6 +104,17 @@ def factor_risk_report_from_covariance(exposures, portfolio, covariance):
     )
     report = report[report["variance_contribution"] != 0]
     return report.sort_values("risk_contribution", key=np.abs, ascending=False)
+
+
+def missing_model_exposures(exposures, covariance):
+    """Return covariance factors absent from exposure rows.
+
+    Example:
+        market is allowed because portfolio_factor_exposure adds it.
+    """
+    modeled = set(covariance.index.astype(str)) - {"market"}
+    available = set(model_exposure_matrix(exposures).columns.astype(str))
+    return sorted(modeled - available)
 
 
 def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True):

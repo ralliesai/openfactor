@@ -88,7 +88,12 @@ def print_risk_table(rows):
         if row["kind"] == "total":
             table.add_section()
         summary = row["kind"] in ("section", "total")
-        active = pct(row["active"]) if summary else num(row["active"])
+        if summary:
+            active = pct(row["active"])
+        elif row.get("family") == "Style":
+            active = ""  # style factors are cap-weighted mean zero, so active == exposure
+        else:
+            active = num(row["active"])
         cells = [row["label"], num(row["exposure"]), active, pct(row["volatility"]), pct(row["pct"])]
         table.add_row(*cells, style=styles.get(row["kind"]))
     console.print(table)

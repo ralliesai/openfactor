@@ -117,16 +117,18 @@ def leaf(row, indent, label):
         active=float(row["active"]),
         volatility=float(row["factor_volatility"]),
         pct=float(row["pct"]),
+        family=row["family"],
     )
 
 
-def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.nan):
+def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.nan, family=None):
     """Return one decomposition row.
 
     Example:
         node("Specific", "section", pct=0.36) is a bold subtotal row.
     """
-    return {"label": label, "kind": kind, "exposure": exposure, "active": active, "volatility": volatility, "pct": pct}
+    return {"label": label, "kind": kind, "exposure": exposure, "active": active,
+            "volatility": volatility, "pct": pct, "family": family}
 
 
 def risk_summary(factor_var, specific, ar, active, snapshot):
