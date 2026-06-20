@@ -107,8 +107,8 @@ def discover_semantic_factors(
 
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
     accepted, skipped = refit_candidates(candidates, memberships, universe_residuals, weights)
-    log_factor_summary(logger, "semantic accepted factors", accepted)
-    log_factor_summary(logger, "semantic rejected factors", skipped)
+    log_factor_summary(logger, "semantic accepted factors", accepted, share)
+    log_factor_summary(logger, "semantic rejected factors", skipped, share)
     log_accepted_details(logger, accepted)
     return SemanticDiscoveryResult(share, threshold, skipped_holdings, pca, candidates_frame, memberships, accepted, skipped)
 
@@ -605,11 +605,11 @@ def log_portfolio_memberships(logger, memberships, weights):
     logger("")
 
 
-def log_factor_summary(logger, title, frame):
+def log_factor_summary(logger, title, frame, residual_share):
     """Print accepted or rejected semantic factor decisions.
 
     Example:
-        rejected factors print one compact idio-explained line each.
+        rejected factors print idio before/after in total portfolio variance units.
     """
     if not logger:
         return
@@ -622,9 +622,10 @@ def log_factor_summary(logger, title, frame):
         line = (
             f"[{row.decision}] {row.name} "
             f"members={row.members} "
-            f"prev_idio=100.00% "
-            f"new_idio_left={idio_left(row.before_var, row.after_var)} "
-            f"idio_explained={row.idio_explained_percent:.2f}%"
+            f"idio_before={100 * residual_share:.2f}% "
+            f"idio_after={idio_after(residual_share, row.idio_explained_percent):.2f}% "
+            f"explained={idio_explained_total(residual_share, row.idio_explained_percent):.2f}% "
+            f"({row.idio_explained_percent:.2f}% of idio)"
         )
         if getattr(row, "reason", ""):
             line = f"{line} reason={row.reason}"
@@ -632,15 +633,22 @@ def log_factor_summary(logger, title, frame):
     logger("")
 
 
-def idio_left(before_var, after_var):
-    """Return remaining idiosyncratic variance as a percent of the old level.
+def idio_after(residual_share, explained_percent):
+    """Return remaining idio share of total portfolio variance.
 
     Example:
-        before=4 and after=3 returns 75.00%.
+        35% residual share and 10% explained returns 31.5.
     """
-    if not np.isfinite(before_var) or before_var <= 0 or not np.isfinite(after_var):
-        return "nan"
-    return f"{100 * after_var / before_var:.2f}%"
+    return 100 * residual_share - idio_explained_total(residual_share, explained_percent)
+
+
+def idio_explained_total(residual_share, explained_percent):
+    """Return explained idio as a share of total portfolio variance.
+
+    Example:
+        35% residual share and 10% explained returns 3.5.
+    """
+    return 100 * residual_share * explained_percent / 100
 
 
 def variance(values):

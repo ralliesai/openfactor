@@ -11,6 +11,7 @@ from openfactor.llm import (
     SemanticCandidate,
     SemanticDiscoveryResult,
     discover_semantic_factors,
+    semantic_factor_members,
 )
 from openfactor.portfolio.report import portfolio_report
 
@@ -28,6 +29,7 @@ __all__ = [
     "discover_semantic_factors",
     "load_snapshot",
     "portfolio_report",
+    "semantic_factor_members",
 ]
 
 

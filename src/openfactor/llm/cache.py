@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import StringIO
+import re
 import time
 import urllib.error
 
@@ -155,6 +156,41 @@ def cached_memberships(cache, factor_id, tickers):
             "reason": "semantic_factors.csv",
         }
     )
+
+
+def semantic_factor_members(factor, cache=DEFAULT_SEMANTIC_CACHE):
+    """Return tickers that belong to one semantic factor.
+
+    Example:
+        semantic_factor_members("Retail Speculation") returns ["GME", "HOOD", "RDDT"].
+    """
+    frame = read_semantic_cache(cache)
+    column = semantic_factor_column(frame, factor)
+    values = pd.to_numeric(frame[column], errors="coerce").fillna(0)
+    return sorted(frame.loc[values > 0, "ticker"].astype(str).tolist())
+
+
+def semantic_factor_column(cache, factor):
+    """Return the cache column for a display name or factor id.
+
+    Example:
+        "Retail Speculation" and "retail_speculation" both map to retail_speculation.
+    """
+    wanted = semantic_factor_id(factor)
+    columns = semantic_columns(cache)
+    for column in columns:
+        if semantic_factor_id(column) == wanted:
+            return column
+    raise ValueError(f"unknown semantic factor: {factor}. available: {columns}")
+
+
+def semantic_factor_id(value):
+    """Return a semantic factor id from a readable name.
+
+    Example:
+        "Retail Speculation" becomes retail_speculation.
+    """
+    return re.sub(r"[^a-zA-Z0-9]+", "_", str(value).lower()).strip("_")
 
 
 def update_semantic_cache(cache, memberships):

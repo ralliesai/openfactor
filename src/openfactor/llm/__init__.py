@@ -1,4 +1,4 @@
-from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
+from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE, semantic_factor_members
 from openfactor.llm.semantic import (
     DEFAULT_RESIDUAL_THRESHOLD,
     SemanticCandidate,
@@ -13,6 +13,7 @@ __all__ = [
     "SemanticDiscoveryResult",
     "SemanticLLMClient",
     "discover_semantic_factors",
+    "semantic_factor_members",
 ]
 
 

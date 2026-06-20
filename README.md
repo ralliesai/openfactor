@@ -202,6 +202,21 @@ GME,0,1
 AAPL,0,0
 ```
 
+Load members for one semantic factor:
+
+```python
+import openfactor as of
+
+stocks = of.semantic_factor_members("Retail Speculation")
+# ["GME", "HOOD", "RDDT", ...]
+```
+
+The function accepts either the readable factor name or the cache column id:
+
+```python
+stocks = of.semantic_factor_members("retail_speculation")
+```
+
 If yesterday's cache covered 1000 stocks and today's universe has 1001, the
 existing 1000 labels are reused and only the new ticker is classified. Rows for
 tickers that leave the universe can stay in the cache; they are harmless and
