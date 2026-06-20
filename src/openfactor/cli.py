@@ -97,3 +97,7 @@ def print_frame(title, frame, rows=None):
     """
     preview = frame if rows is None else frame.head(rows)
     print(f"{title}\n{preview.to_string()}")
+
+
+if __name__ == "__main__":
+    main()
