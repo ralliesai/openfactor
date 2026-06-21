@@ -43,6 +43,7 @@ FACT_COLUMNS = [
     "unit",
     "value",
     "has_segment",
+    "segment",
 ]
 
 METRIC_COLUMNS = [

@@ -14,6 +14,11 @@ from data.build.calendar import default_as_of_date
 from data.build.downloads import ProviderDownloader, years_start
 from data.build.factor_inputs import add_factor_inputs, year_ago
 from data.build.fundamentals import FundamentalHistory
+from data.build.quality import (
+    validate_fundamental_share_sources,
+    validate_market_cap_formula,
+    validate_private_inputs,
+)
 from data.build.serialize import (
     fundamentals_audit_file,
     fundamentals_file,
@@ -123,6 +128,7 @@ class DatasetBuilder:
             self.downloader,
             self.previous_fundamentals,
         ).rows(matrix.tickers, sec_dates)
+        validate_fundamental_share_sources(fundamentals)
         fundamentals = self.with_daily_market_caps(fundamentals, prices)
         fundamentals = add_factor_inputs(
             fundamentals,
@@ -152,6 +158,8 @@ class DatasetBuilder:
             result_from_ready_inputs(matrix, prices, reference, fundamentals)
             computes exposures, factor returns, covariance, and specific risk.
         """
+        validate_fundamental_share_sources(fundamentals)
+        validate_market_cap_formula(fundamentals, prices)
         LOGGER.info("computing current exposures")
         exposures = normalize_exposures(
             self.compute_exposures(matrix, current_reference),
@@ -401,6 +409,7 @@ def publish_dataset(result, public_bucket, private_bucket, r2=None):
         publish_dataset(result, "openfactor-public", "openfactor-private")
         uploads public factors and private input CSVs.
     """
+    validate_private_inputs(result)
     r2 = r2 or R2Client.from_env()
     snapshot = result.snapshot
     dated = f"factors/{snapshot.universe_name}/date={snapshot.as_of_date}"

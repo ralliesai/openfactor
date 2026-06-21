@@ -1,6 +1,6 @@
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Static
 
 
@@ -42,7 +42,9 @@ class OpenFactorTUI(App):
     #cards { height: auto; padding: 1 0; }
     .card { width: 1fr; height: 5; border: round $primary 40%; padding: 0 1; margin: 0 1 0 0; }
     .legend { color: $text-muted; padding: 0 1; }
-    Collapsible { margin: 1 0; }
+    #columns { height: auto; }
+    .col { width: 1fr; height: auto; }
+    Collapsible { margin: 0 1 1 0; }
     DataTable { height: auto; margin: 0 1; }
     #horizons { height: auto; padding: 0 1 1 1; }
     Button { margin: 0 1 0 0; min-width: 12; }
@@ -66,19 +68,24 @@ class OpenFactorTUI(App):
         with VerticalScroll():
             yield Static(self.header_line(), classes="subtitle")
             yield Horizontal(*self.cards(), id="cards")
-            with Collapsible(title="Active risk — what's eating your tracking-error budget", collapsed=False):
-                yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
-                with Collapsible(title=f"{tail} smaller factors", collapsed=True):
-                    yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
-                yield Static("[dim]green = diversifying (reduces tracking error)[/]", classes="legend")
-            with Collapsible(title="Stock-specific risk — which names are the black box", collapsed=False):
-                yield Static(self.specific_summary(), classes="legend")
-                yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
-            with Collapsible(title="Return attribution", collapsed=False):
-                yield Horizontal(*self.horizon_buttons(), id="horizons")
-                yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
-            with Collapsible(title="Tail risk & scenarios", collapsed=True):
-                yield Static(self.tail_text(), classes="legend")
+            with Horizontal(id="columns"):
+                with Vertical(classes="col"):
+                    with Collapsible(title="Active risk — what's eating your tracking-error budget", collapsed=False):
+                        yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
+                        with Collapsible(title=f"{tail} smaller factors", collapsed=True):
+                            yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
+                        yield Static("[dim]green = diversifying (reduces tracking error)[/]", classes="legend")
+                    with Collapsible(title="Stock-specific risk — which names are the black box", collapsed=False):
+                        yield Static(self.specific_summary(), classes="legend")
+                        yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
+                with Vertical(classes="col"):
+                    with Collapsible(title="Return attribution", collapsed=False):
+                        yield Horizontal(*self.horizon_buttons(), id="horizons")
+                        yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
+                    with Collapsible(title="Benchmark", collapsed=True):
+                        yield Static(self.benchmark_text(), classes="legend")
+                    with Collapsible(title="Tail risk & scenarios", collapsed=True):
+                        yield Static(self.tail_text(), classes="legend")
         yield Footer()
 
     def on_mount(self):
@@ -89,10 +96,25 @@ class OpenFactorTUI(App):
     # ---- headline -------------------------------------------------------
     def header_line(self):
         m = self.report["meta"]
-        line = f"[b]{m['universe']}[/] · as of {m['as_of_date']} · {m['tickers']} tickers · {m['held']} held · benchmark: cap-weighted universe"
+        b = m["benchmark"]
+        line = (f"[b]{m['universe']}[/] · as of {m['as_of_date']} · {m['tickers']} tickers · "
+                f"{m['held']} held · benchmark: {b['name']} ({b['tagline']})")
         if m["missing"]:
             line += f"\n[yellow]dropped (not in universe): {', '.join(m['missing'])}[/]"
         return line
+
+    def benchmark_text(self):
+        b = self.report["meta"]["benchmark"]
+        tilt = "—" if b["max_style_tilt"] is None else f"{b['max_style_tilt']:.2f}σ"
+        return (
+            f"[b]{b['name']}[/] · {b['tagline']}\n"
+            f"{b['constituents']} constituents · top-10 weight {pct1(b['top10_weight'])} · "
+            f"effective names {b['effective_names']:.0f}\n"
+            f"[dim]Cap-weighted — the same methodology as standard large-cap indices. "
+            f"It defines the market the style factors are measured against, so its own style tilts are "
+            f"near zero (largest {tilt}) and its beta is 1.00. That makes it a faithful proxy for the "
+            f"broad US large-cap market; active risk and beta are measured against it.[/]"
+        )
 
     def cards(self):
         s = self.report["summary"]
@@ -112,7 +134,7 @@ class OpenFactorTUI(App):
         self.fill_active(self.query_one("#active_tail", DataTable), active[TOP_N:], specific=False)
 
     def fill_active(self, table, rows, specific):
-        table.add_columns("Factor", "Family", "Active Exp", "% of TE")
+        table.add_columns("Factor", "Family", "Active Exp", "% of Tracking Error")
         for row in rows:
             table.add_row(row["label"], row["family"], expo_cell(row["active_exposure"]), te_cell(row["te_share"]))
         if specific:

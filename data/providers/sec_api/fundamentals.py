@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
+import json
+import re
 
 import numpy as np
 import pandas as pd
@@ -46,7 +48,6 @@ SHARE_METRICS = {
         "EntityCommonStockSharesOutstanding",
         "CommonStockSharesOutstanding",
     ],
-    "weighted_basic": ["WeightedAverageNumberOfSharesOutstandingBasic"],
 }
 
 
@@ -231,6 +232,7 @@ def fact_rows(ticker, accession_no, xbrl):
                 if not np.isfinite(value):
                     continue
                 period = item.get("period", {})
+                segment = segment_text(item.get("segment"))
                 rows.append(
                     {
                         "ticker": ticker,
@@ -242,7 +244,8 @@ def fact_rows(ticker, accession_no, xbrl):
                         "instant_date": period.get("instant"),
                         "unit": item.get("unitRef"),
                         "value": value,
-                        "has_segment": has_segment(item),
+                        "has_segment": bool(segment),
+                        "segment": segment,
                     }
                 )
     return pd.DataFrame(rows, columns=FACT_COLUMNS)
@@ -379,7 +382,7 @@ def asset_growth_row(filing, facts):
 
 
 def shares_outstanding_row(filing, facts):
-    """Return latest common shares outstanding from SEC XBRL.
+    """Return point-in-time shares outstanding from instant SEC facts.
 
     Example:
         EntityCommonStockSharesOutstanding becomes the shares_outstanding metric.
@@ -387,6 +390,18 @@ def shares_outstanding_row(filing, facts):
     rows = share_rows(facts, SHARE_METRICS["shares_outstanding"])
     if rows.empty:
         return None
+
+    equivalent = class_equivalent_share_row(filing, rows)
+    if equivalent is not None:
+        return metric_row(
+            filing,
+            "shares_outstanding",
+            equivalent["source"],
+            equivalent["value"],
+            equivalent["period_end"],
+        )
+    if ticker_class(filing["ticker"]) and len(latest_legal_class_counts(rows)[0]) > 1:
+        raise ValueError(f"cannot derive class-equivalent shares for {filing['ticker']}")
 
     order = rows["_order"].min()
     rows = rows[rows["_order"] == order]
@@ -397,16 +412,6 @@ def shares_outstanding_row(filing, facts):
         source = f"{source}_sum"
     value = rows["value"].sum()
 
-    weighted_basic = weighted_basic_share_count(filing, facts)
-    if weighted_basic is not None and weighted_basic["value"] > value * 1.2:
-        return metric_row(
-            filing,
-            "shares_outstanding",
-            f"{weighted_basic['concept']}_weighted_basic",
-            weighted_basic["value"],
-            weighted_basic["period_end"],
-        )
-
     return metric_row(
         filing,
         "shares_outstanding",
@@ -416,29 +421,47 @@ def shares_outstanding_row(filing, facts):
     )
 
 
-def weighted_basic_share_count(filing, facts):
-    """Return latest weighted basic shares when it fixes class conversion.
+def class_equivalent_share_row(filing, rows):
+    """Return ticker-class-equivalent shares from instant class facts.
 
     Example:
-        BRK.B cover-page A/B counts can use B-equivalent weighted shares.
+        BRK.B Class A/B counts plus A-equivalent shares become B-equivalent shares.
     """
-    rows = facts[
-        facts["concept"].isin(SHARE_METRICS["weighted_basic"])
-        & is_share_unit(facts["unit"])
-        & (facts["end_date"].astype(str) == str(filing["period_of_report"]))
-    ].copy()
-    if rows.empty:
+    target_class = ticker_class(filing["ticker"])
+    if not target_class:
         return None
 
-    rows["_days"] = rows.apply(duration_days, axis=1)
-    days = rows["_days"].max() if filing["form_type"] == "10-K" else rows["_days"].min()
-    rows = rows[rows["_days"] == days]
-    row = rows.sort_values("value").iloc[-1]
-    return {
-        "concept": row["concept"],
-        "period_end": row["end_date"],
-        "value": row["value"],
-    }
+    latest_counts, latest_date = latest_legal_class_counts(rows)
+    if target_class not in latest_counts or len(latest_counts) != 2:
+        return None
+
+    for equivalent in equivalent_class_rows(rows):
+        base_class = equivalent["class"]
+        same_day_counts = legal_class_counts(rows, equivalent["instant_date"])
+        if set(same_day_counts) != set(latest_counts) or base_class not in same_day_counts:
+            continue
+
+        other_class = next(value for value in same_day_counts if value != base_class)
+        base_count = same_day_counts[base_class]
+        other_count = same_day_counts[other_class]
+        other_as_base = equivalent["value"] - base_count
+        if other_as_base <= 0:
+            continue
+
+        conversion = other_count / other_as_base
+        if target_class == base_class:
+            value = latest_counts[base_class] + latest_counts[other_class] / conversion
+        elif target_class == other_class:
+            value = latest_counts[other_class] + latest_counts[base_class] * conversion
+        else:
+            continue
+
+        return {
+            "source": f"CommonStockSharesOutstanding_class_equivalent_{base_class}_to_{target_class}",
+            "value": value,
+            "period_end": latest_date,
+        }
+    return None
 
 
 def share_rows(facts, concepts):
@@ -456,7 +479,92 @@ def share_rows(facts, concepts):
 
     rows["_order"] = rows["concept"].map({concept: i for i, concept in enumerate(concepts)})
     rows["instant_date"] = pd.to_datetime(rows["instant_date"]).dt.date
+    if "segment" not in rows:
+        rows["segment"] = ""
+    rows["segment"] = rows["segment"].fillna("").astype(str)
+    rows = rows.drop_duplicates(["concept", "instant_date", "segment", "value"])
+    conflicts = rows.groupby(["concept", "instant_date", "segment"])["value"].nunique()
+    conflicts = conflicts[conflicts > 1]
+    if not conflicts.empty:
+        sample = conflicts.head(5).reset_index()[["concept", "instant_date", "segment"]].to_dict("records")
+        raise ValueError(f"conflicting share facts: {sample}")
     return rows.dropna(subset=["instant_date"])
+
+
+def latest_legal_class_counts(rows):
+    """Return latest legal share counts keyed by class code.
+
+    Example:
+        BRK.B returns Class A and Class B counts from the latest instant.
+    """
+    frame = rows[rows["segment"].map(common_class).notna()].copy()
+    if frame.empty:
+        return {}, None
+    latest = frame["instant_date"].max()
+    return legal_class_counts(frame, latest), latest
+
+
+def legal_class_counts(rows, instant_date):
+    """Return legal class share counts for one instant date.
+
+    Example:
+        Class A and Class B duplicated across statements collapse to one value each.
+    """
+    frame = rows[rows["instant_date"] == instant_date].copy()
+    frame["class"] = frame["segment"].map(common_class)
+    frame = frame.dropna(subset=["class"])
+    if frame.empty:
+        return {}
+    return frame.groupby("class")["value"].max().to_dict()
+
+
+def equivalent_class_rows(rows):
+    """Return instant rows that state total shares in one equivalent class.
+
+    Example:
+        Berkshire's A-equivalent common shares row is used to derive B-equivalent shares.
+    """
+    frame = rows.copy()
+    frame["class"] = frame["segment"].map(equivalent_class)
+    frame = frame.dropna(subset=["class"])
+    if frame.empty:
+        return []
+    frame = frame.sort_values("instant_date", ascending=False)
+    frame = frame.drop_duplicates(["class", "instant_date", "value"])
+    return frame[["class", "instant_date", "value"]].to_dict("records")
+
+
+def ticker_class(ticker):
+    """Return the listed share class suffix from a ticker.
+
+    Example:
+        BRK.B returns b.
+    """
+    match = re.search(r"[.\-/]([A-Z0-9]+)$", str(ticker).upper())
+    return match.group(1).lower() if match else None
+
+
+def common_class(segment):
+    """Return a common-stock class code from SEC segment text.
+
+    Example:
+        us-gaap:CommonClassBMember returns b.
+    """
+    return class_member(segment, "common")
+
+
+def equivalent_class(segment):
+    """Return an equivalent-stock class code from SEC segment text.
+
+    Example:
+        brka:EquivalentClassAMember returns a.
+    """
+    return class_member(segment, "equivalent")
+
+
+def class_member(segment, prefix):
+    match = re.search(rf"{prefix}class([a-z0-9]+)member", str(segment).lower())
+    return match.group(1) if match else None
 
 
 def metric_row(filing, metric, source, value, period_end=None):
@@ -490,14 +598,15 @@ def as_list(value):
     return []
 
 
-def has_segment(item):
-    """Return True when an XBRL fact has a segment.
+def segment_text(value):
+    """Return stable text for SEC segment metadata.
 
     Example:
-        product revenue rows return True; consolidated rows return False.
+        CommonClassBMember remains visible for share-class logic.
     """
-    segment = item.get("segment")
-    return segment not in (None, {})
+    if value in (None, {}):
+        return ""
+    return json.dumps(value, sort_keys=True) if isinstance(value, dict) else str(value)
 
 
 def duration_days(row):

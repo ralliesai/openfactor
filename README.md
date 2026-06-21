@@ -177,17 +177,8 @@ result.accepted
 result.skipped
 ```
 
-CLI:
-
-```bash
-openfactor \
-  --universe openfactor-us1000 \
-  --portfolio portfolio.csv \
-  --semantic-discovery \
-  --semantic-threshold 0.10 \
-  --semantic-window 63 \
-  --semantic-batch-size 25
-```
+Semantic discovery is a Python API (`discover_semantic_factors()`, above); it is
+not wired into the interactive terminal.
 
 Environment:
 
@@ -204,7 +195,7 @@ How it works:
 
 | Step | Behavior |
 | --- | --- |
-| Trigger | Runs only when `--semantic-discovery` is passed or `discover_semantic_factors()` is called |
+| Trigger | Runs only when `discover_semantic_factors()` is called |
 | Residual window | Uses recent residual-return history, default `63` trading days |
 | Discovery | Uses residual PCA, deterministic exposures, and web search to propose missing common risks |
 | Guardrail | Rejects candidates already explained by market, sector, industry, or existing style factors |

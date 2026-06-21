@@ -47,6 +47,27 @@ def active_risk_report(portfolio, snapshot):
     }
 
 
+def benchmark_profile(snapshot):
+    """Describe the cap-weighted benchmark so it reads as a credible proxy.
+
+    Example:
+        1000 constituents, top-10 weight, effective names, and the largest style
+        tilt (near zero, since the benchmark defines the market).
+    """
+    weights = benchmark_weights(snapshot.exposures).sort_values(ascending=False)
+    bench = weights.rename("allocation").reset_index()
+    exposure = portfolio_factor_exposure(snapshot.exposures, bench)
+    groups = snapshot.exposures.drop_duplicates("factor").set_index("factor")["group"].to_dict()
+    style = [abs(float(value)) for factor, value in exposure.items()
+             if groups.get(factor) in ("price", "reference")]
+    return {
+        "constituents": int(len(weights)),
+        "top10_weight": float(weights.head(10).sum()),
+        "effective_names": 1.0 / float((weights ** 2).sum()),
+        "max_style_tilt": max(style) if style else None,
+    }
+
+
 def specific_by_name(portfolio, snapshot):
     """Return each holding's share of the portfolio's stock-specific risk.
 

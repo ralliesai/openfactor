@@ -1,4 +1,11 @@
-from openfactor.portfolio.active_risk import active_risk_report, specific_by_name, tail_metrics
+import re
+
+from openfactor.portfolio.active_risk import (
+    active_risk_report,
+    benchmark_profile,
+    specific_by_name,
+    tail_metrics,
+)
 from openfactor.portfolio.attribution import attribution_index
 from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition
@@ -51,7 +58,7 @@ def attach_returns(rows, index):
 
 
 def meta(portfolio, snapshot):
-    """Return universe context plus dropped holdings."""
+    """Return universe context, dropped holdings, and the benchmark proxy."""
     missing = missing_holdings(portfolio, snapshot.universe)["ticker"].astype(str).tolist()
     return {
         "universe": snapshot.universe_name,
@@ -59,7 +66,22 @@ def meta(portfolio, snapshot):
         "tickers": int(len(snapshot.universe)),
         "held": int(len(portfolio)),
         "missing": missing,
+        "benchmark": {
+            "name": benchmark_label(snapshot.universe_name),
+            "tagline": "cap-weighted market proxy",
+            **benchmark_profile(snapshot),
+        },
     }
+
+
+def benchmark_label(universe):
+    """Return a display name for the cap-weighted benchmark proxy.
+
+    Example:
+        "openfactor-us1000" becomes "US 1000".
+    """
+    core = universe.split("-", 1)[-1]
+    return re.sub(r"([a-zA-Z])(\d)", r"\1 \2", core).upper()
 
 
 def find(rows, label):
