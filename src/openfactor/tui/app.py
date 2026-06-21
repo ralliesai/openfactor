@@ -91,6 +91,13 @@ def ratio_cell(value, bold=False):
     return text
 
 
+def idio_share_cell(value, contribution):
+    """Return a name-residual share colored by contribution direction."""
+    if missing(value):
+        return Text("—", style="dim")
+    return Text(f"{value * 100:+.1f}%", style=("green" if contribution >= 0 else "red"))
+
+
 def label_cell(row):
     """Return a table label styled by row type."""
     text = Text(str(row["label"]))
@@ -168,6 +175,8 @@ class OpenFactorTUI(App):
                         yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
                         yield Static("[b]Top active return contributors[/]", classes="legend")
                         yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
+                    with Collapsible(title="Idiosyncratic return — name drivers", collapsed=False):
+                        yield DataTable(id="specific_returns", cursor_type="none", zebra_stripes=True)
                     with Collapsible(title="Benchmark", collapsed=True):
                         yield Static(self.benchmark_text(), classes="legend")
                     with Collapsible(title="Parametric loss & beta", collapsed=True):
@@ -180,6 +189,7 @@ class OpenFactorTUI(App):
         self.populate_risk()
         self.populate_active()
         self.populate_specific()
+        self.populate_specific_returns()
         self.populate_returns()
 
     # ---- headline -------------------------------------------------------
@@ -310,6 +320,21 @@ class OpenFactorTUI(App):
             table.add_row(
                 name["ticker"], pct1(name["weight"]),
                 pct1(name["specific_vol"]), te_cell(name["share"]),
+            )
+
+    def populate_specific_returns(self):
+        table = self.query_one("#specific_returns", DataTable)
+        table.add_columns("Ticker", "Weight", "Contribution", "% Idio")
+        rows = self.report.get("specific_return_names") or []
+        if not rows:
+            table.add_row("—", Text("—", style="dim"), Text("—", style="dim"), Text("—", style="dim"))
+            return
+        for row in rows[:TOP_N]:
+            table.add_row(
+                row["ticker"],
+                pct1(row["weight"]),
+                signed_cell(row["contribution"]),
+                idio_share_cell(row["share"], row["contribution"]),
             )
 
     def populate_returns(self):

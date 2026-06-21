@@ -1,5 +1,7 @@
 import re
 
+import pandas as pd
+
 from openfactor.io.indexes import (
     DEFAULT_BENCHMARK_TICKER,
     index_label,
@@ -42,7 +44,7 @@ def tui_report(portfolio, snapshot):
     benchmark_ret, benchmark_kind = benchmark_returns(snapshot, dates)
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
     specific_ret = benchmark_relative_specific(index, active_ret)
-    return {
+    report = {
         "today": today_contributions(index, specific_ret),
         "meta": meta(portfolio, snapshot, benchmark_context(snapshot, benchmark_kind)),
         "risk_rows": rows,
@@ -67,12 +69,19 @@ def tui_report(portfolio, snapshot):
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
         "active_ret": active_ret,
+        "specific_return_names": idiosyncratic_return_by_name(
+            portfolio,
+            snapshot,
+            index,
+            benchmark_ret,
+        ),
         "names": names,
         "horizons": HORIZONS,
         "horizon_dates": horizon_labels(dates),
         "track": None,
         "realized": None,
     }
+    return report
 
 
 def today_contributions(index, specific_ret):
@@ -97,6 +106,11 @@ def today_contributions(index, specific_ret):
 def num(value):
     """Return a finite float, mapping None and NaN to 0.0."""
     return 0.0 if value is None or value != value else float(value)
+
+
+def missing(value):
+    """Return True when a scalar value is missing."""
+    return value is None or value != value
 
 
 def return_dates(snapshot):
@@ -149,6 +163,64 @@ def benchmark_relative_specific(index, active_ret):
         explained = sum(num((index["family"].get(name) or blank)[i]) for name in ["Style", "Sector", "Industry"])
         values.append(active - explained)
     return values
+
+
+def idiosyncratic_return_by_name(portfolio, snapshot, index, benchmark_ret):
+    """Return latest-day benchmark-relative residual return by holding.
+
+    Example:
+        old snapshots estimated market internally, so each name receives its
+        share of the market-to-SPY rebase before the rows are ranked.
+    """
+    if not index or getattr(snapshot, "residual_returns", None) is None:
+        return []
+    dates = return_dates(snapshot)
+    if not dates:
+        return []
+    weights = portfolio.set_index("ticker")["allocation"].astype(float)
+    residuals = latest_residuals(snapshot.residual_returns, dates[-1]).reindex(weights.index).fillna(0.0)
+    raw = weights * residuals
+    adjustment = benchmark_rebase_by_name(weights, index, benchmark_ret)
+    contribution = raw + adjustment
+    total = float(contribution.sum())
+    rows = []
+    for ticker in contribution.abs().sort_values(ascending=False).index:
+        rows.append(
+            {
+                "ticker": str(ticker),
+                "weight": float(weights[ticker]),
+                "raw_contribution": float(raw[ticker]),
+                "contribution": float(contribution[ticker]),
+                "share": None if abs(total) < 1e-12 else float(contribution[ticker] / total),
+            }
+        )
+    return rows
+
+
+def latest_residuals(residual_returns, date):
+    """Return residual returns for one date keyed by ticker."""
+    frame = residual_returns.copy()
+    frame["date"] = pd.to_datetime(frame["date"]).dt.date.astype(str)
+    frame["ticker"] = frame["ticker"].astype(str)
+    frame["residual_return"] = pd.to_numeric(frame["residual_return"], errors="coerce")
+    return frame[frame["date"] == str(date)].set_index("ticker")["residual_return"]
+
+
+def benchmark_rebase_by_name(weights, index, benchmark_ret):
+    """Allocate the market-to-benchmark difference across held names."""
+    market = first((index.get("factor", {}).get("market") or [None]))
+    benchmark = first(benchmark_ret)
+    net = float(weights.sum())
+    if missing(market) or missing(benchmark) or abs(net) < 1e-12:
+        return weights * 0.0
+    return weights / net * (net * market - benchmark)
+
+
+def first(values):
+    """Return the first item from a list-like object, or None."""
+    if values is None:
+        return None
+    return values[0] if len(values) else None
 
 
 def diff(left, right):

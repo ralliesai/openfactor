@@ -129,6 +129,9 @@ decision numbers:
   ranked factor details with contribution, `% Active`, and `TE Share` side by
   side. Longer real attribution comes from an accumulated `--track` history,
   not from running today's weights backward.
+- **Idiosyncratic return by name** — the holdings that drove the stock-specific
+  return line, adjusted so the name rows reconcile to the benchmark-relative
+  idiosyncratic return shown in the active-return table.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
