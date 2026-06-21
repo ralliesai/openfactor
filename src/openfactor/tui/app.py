@@ -1,10 +1,9 @@
 import asyncio
 
-from rich.markup import escape
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Input, RichLog, Static
+from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Input, Markdown, Static
 
 from openfactor.llm.report_chat import ReportChat
 
@@ -130,13 +129,15 @@ class OpenFactorTUI(App):
     .card { width: 1fr; height: 5; border: round $primary 40%; padding: 0 1; margin: 0 1 0 0; }
     .legend { color: $text-muted; padding: 0 1; }
     #main { height: 1fr; }
-    #report_scroll { width: 1fr; height: 1fr; }
+    #report_area { width: 1fr; height: 1fr; }
+    #report_scroll { width: 1fr; height: 1fr; scrollbar-size: 1 1; }
     #columns { height: auto; }
     .col { width: 1fr; height: auto; }
-    #chat_sidebar { width: 52; height: 1fr; padding: 0 1 0 0; }
+    #chat_sidebar { width: 52; height: 1fr; padding: 0 1; }
     #chat_title { height: auto; padding: 0 0 1 0; }
-    #chat_log { height: 1fr; }
-    #chat_input { height: 3; }
+    #chat_log { height: 1fr; padding: 0; overflow-y: auto; overflow-x: hidden; scrollbar-size: 1 1; }
+    #chat_input { height: 3; border: none; padding: 0 1; }
+    #chat_input:focus { border: none; background-tint: $foreground 5%; }
     Collapsible { margin: 0 1 1 0; }
     DataTable { height: auto; margin: 0 1; }
     #horizons { height: auto; padding: 0 1 1 1; }
@@ -155,63 +156,65 @@ class OpenFactorTUI(App):
         self.horizon = 0  # default to 1 Day — your book's actual return
         self.chat = ReportChat.from_env(report)
         self.chat_history = []
+        self.chat_transcript = ""
 
     def compose(self) -> ComposeResult:
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
         tail = max(0, len(active) - TOP_N)
         _, risk_tail = self.risk_row_sets()
         yield Header(show_clock=False)
-        yield Static(self.header_line(), classes="subtitle")
-        yield Horizontal(*self.cards(), id="cards")
         with Horizontal(id="main"):
-            with VerticalScroll(id="report_scroll"):
-                with Horizontal(id="columns"):
-                    with Vertical(classes="col"):
-                        with Collapsible(title="Portfolio risk — current report", collapsed=False):
-                            yield Static(self.risk_summary(), classes="legend")
-                            yield DataTable(id="risk", cursor_type="none", zebra_stripes=True)
-                            if risk_tail:
-                                with Collapsible(title=f"{len(risk_tail)} smaller risk drivers", collapsed=True):
-                                    yield DataTable(id="risk_tail", cursor_type="none", zebra_stripes=True)
-                        with Collapsible(title="Active risk — tracking-error drivers", collapsed=False):
-                            yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
-                            with Collapsible(title=f"{tail} smaller factors", collapsed=True):
-                                yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
-                            yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
-                        with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
-                            yield Static(self.idiosyncratic_summary(), classes="legend")
-                            yield DataTable(id="idiosyncratic", cursor_type="none", zebra_stripes=True)
-                    with Vertical(classes="col"):
-                        with Collapsible(title="Active return attribution", collapsed=False):
-                            yield Horizontal(*self.horizon_buttons(), id="horizons")
-                            yield Static(id="returns_summary", classes="legend")
-                            yield Static("[b]Active return reconciliation[/]", classes="legend")
-                            yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
-                            yield Static("[b]Top active return contributors[/]", classes="legend")
-                            yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
-                        with Collapsible(title="Idiosyncratic return — name drivers", collapsed=False):
-                            yield DataTable(id="idiosyncratic_returns", cursor_type="none", zebra_stripes=True)
-                        with Collapsible(title="Benchmark", collapsed=True):
-                            yield Static(self.benchmark_text(), classes="legend")
-                        with Collapsible(title="Parametric loss & beta", collapsed=True):
-                            yield Static(self.tail_text(), classes="legend")
-                        with Collapsible(title="Footnotes", collapsed=True):
-                            yield Static(self.footnotes_text(), classes="legend")
+            with Vertical(id="report_area"):
+                yield Static(self.header_line(), classes="subtitle")
+                yield Horizontal(*self.cards(), id="cards")
+                with VerticalScroll(id="report_scroll"):
+                    with Horizontal(id="columns"):
+                        with Vertical(classes="col"):
+                            with Collapsible(title="Portfolio risk — current report", collapsed=False):
+                                yield Static(self.risk_summary(), classes="legend")
+                                yield DataTable(id="risk", cursor_type="none", zebra_stripes=True)
+                                if risk_tail:
+                                    with Collapsible(title=f"{len(risk_tail)} smaller risk drivers", collapsed=True):
+                                        yield DataTable(id="risk_tail", cursor_type="none", zebra_stripes=True)
+                            with Collapsible(title="Active risk — tracking-error drivers", collapsed=False):
+                                yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
+                                with Collapsible(title=f"{tail} smaller factors", collapsed=True):
+                                    yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
+                                yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
+                            with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
+                                yield Static(self.idiosyncratic_summary(), classes="legend")
+                                yield DataTable(id="idiosyncratic", cursor_type="none", zebra_stripes=True)
+                        with Vertical(classes="col"):
+                            with Collapsible(title="Active return attribution", collapsed=False):
+                                yield Horizontal(*self.horizon_buttons(), id="horizons")
+                                yield Static(id="returns_summary", classes="legend")
+                                yield Static("[b]Active return reconciliation[/]", classes="legend")
+                                yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
+                                yield Static("[b]Top active return contributors[/]", classes="legend")
+                                yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
+                            with Collapsible(title="Idiosyncratic return — name drivers", collapsed=False):
+                                yield DataTable(id="idiosyncratic_returns", cursor_type="none", zebra_stripes=True)
+                            with Collapsible(title="Benchmark", collapsed=True):
+                                yield Static(self.benchmark_text(), classes="legend")
+                            with Collapsible(title="Parametric loss & beta", collapsed=True):
+                                yield Static(self.tail_text(), classes="legend")
+                            with Collapsible(title="Footnotes", collapsed=True):
+                                yield Static(self.footnotes_text(), classes="legend")
             if self.chat:
                 with Vertical(id="chat_sidebar"):
                     yield Static("[b]Ask OpenFactor[/]\n[dim]Questions use this TUI report.[/]", id="chat_title")
-                    yield RichLog(id="chat_log", wrap=True, markup=True, highlight=False, auto_scroll=True)
+                    yield Markdown("", id="chat_log", open_links=False)
                     yield Input(placeholder="Ask about beta, TE, attribution...", id="chat_input")
         yield Footer()
 
-    def on_mount(self):
+    async def on_mount(self):
         self.populate_risk()
         self.populate_active()
         self.populate_idiosyncratic()
         self.populate_idiosyncratic_returns()
         self.populate_returns()
         if self.chat:
-            self.append_chat("OpenFactor", "Ask about this TUI report, beta hedges, tracking error, or attribution.")
+            await self.append_chat("OpenFactor", "Ask about this TUI report, beta hedges, tracking error, or attribution.")
 
     # ---- headline -------------------------------------------------------
     def header_line(self):
@@ -601,22 +604,24 @@ class OpenFactorTUI(App):
         if not question:
             return
         event.input.disabled = True
-        self.append_chat("You", question)
+        await self.append_chat("You", question)
         try:
             answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history)
         except Exception as error:
-            self.append_chat("OpenFactor", f"Chat error: {error}")
+            await self.append_chat("OpenFactor", f"Chat error: {error}")
         else:
             self.chat_history.append({"role": "user", "content": question})
             self.chat_history.append({"role": "assistant", "content": answer})
-            self.append_chat("OpenFactor", answer)
+            await self.append_chat("OpenFactor", answer)
         finally:
             event.input.disabled = False
             event.input.focus()
 
-    def append_chat(self, author, body):
-        log = self.query_one("#chat_log", RichLog)
-        log.write(f"[b]{escape(author)}[/]\n{escape(body)}\n")
+    async def append_chat(self, author, body):
+        log = self.query_one("#chat_log", Markdown)
+        self.chat_transcript = f"{self.chat_transcript}{chat_fragment(author, body)}"
+        await log.update(self.chat_transcript)
+        log.scroll_end(animate=False)
 
     def action_expand_all(self):
         for widget in self.query(Collapsible):
@@ -642,6 +647,14 @@ def return_row(label, family, contribution, active_share, te_share, kind):
         "te_share": te_share,
         "kind": kind,
     }
+
+
+def chat_fragment(author, body):
+    """Return one Markdown chat turn."""
+    if author == "You":
+        quote = "\n".join(f"> {line}" if line else ">" for line in str(body).splitlines())
+        return f"\n\n**You**\n\n{quote}\n"
+    return f"\n\n**{author}**\n\n{str(body).strip()}\n"
 
 
 def family_value(report, name, horizon):
