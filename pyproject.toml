@@ -17,6 +17,7 @@ dependencies = [
   "pydantic>=2.0",
   "rich>=13.0",
   "scipy>=1.10",
+  "textual>=8.0",
   "tqdm>=4.66",
 ]
 
@@ -25,12 +26,8 @@ data = [
   "requests>=2.31",
   "tqdm>=4.66",
 ]
-tui = [
-  "textual>=8.0",
-]
 [project.scripts]
 openfactor = "openfactor.cli:main"
-openfactor-tui = "openfactor.tui.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

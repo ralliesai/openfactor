@@ -3,16 +3,13 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from openfactor.console import console, print_report_table
 from openfactor.io.snapshot import load_snapshot
-from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
-from openfactor.portfolio.attribution import attribution_index, merge_attribution
-from openfactor.portfolio.report import missing_holdings
-from openfactor.portfolio.summary import risk_decomposition, semantic_rows
+from openfactor.tui.app import OpenFactorTUI
+from openfactor.tui.report import tui_report
 
 
 def main():
-    """Run the OpenFactor portfolio report CLI.
+    """Launch the OpenFactor interactive portfolio risk terminal.
 
     Example:
         openfactor --universe openfactor-us1000 --portfolio portfolio.csv
@@ -20,37 +17,11 @@ def main():
     args = parse_args()
     try:
         portfolio = load_portfolio(args.portfolio)
-        snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=args.attribution)
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
-
-    rows = risk_decomposition(portfolio, snapshot)
-    if args.semantic_discovery:
-        from openfactor.llm import discover_semantic_factors
-
-        rows += semantic_rows(
-            discover_semantic_factors(
-                portfolio,
-                snapshot,
-                threshold=args.semantic_threshold,
-                window=args.semantic_window,
-                batch_size=args.semantic_batch_size,
-                semantic_cache=args.semantic_cache,
-                logger=None,
-            )
-        )
-    index = attribution_index(portfolio, snapshot) if args.attribution else None
-    merge_attribution(rows, index)
-    console.rule(
-        f"[bold]OpenFactor[/bold] · {snapshot.universe_name} · "
-        f"as of {snapshot.as_of_date} · {len(snapshot.universe)} tickers"
-    )
-    print_report_table(rows, returns=index is not None)
-    if args.attribution and index is None:
-        console.print("[dim]return attribution needs an exposures panel; this snapshot has none[/dim]")
-    missing = missing_holdings(portfolio, snapshot.universe)["ticker"].tolist()
-    if missing:
-        console.print(f"[dim]missing holdings (not in universe): {', '.join(missing)}[/dim]")
+    print(f"loading {args.universe} @ {args.snapshot} (with exposure panel) …")
+    snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
+    OpenFactorTUI(tui_report(portfolio, snapshot)).run()
 
 
 def parse_args():
@@ -59,19 +30,10 @@ def parse_args():
     Example:
         --snapshot latest is used unless a date is supplied.
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--universe", required=True)
+    parser = argparse.ArgumentParser(prog="openfactor")
+    parser.add_argument("--universe", default="openfactor-us1000")
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
-    attribution = parser.add_mutually_exclusive_group()
-    attribution.add_argument("--attribution", dest="attribution", action="store_true", help="Show return attribution table.")
-    attribution.add_argument("--no-attribution", dest="attribution", action="store_false", help="Skip return attribution table.")
-    parser.set_defaults(attribution=True)
-    parser.add_argument("--semantic-discovery", action="store_true")
-    parser.add_argument("--semantic-threshold", type=float, default=0.10)
-    parser.add_argument("--semantic-window", type=int, default=63)
-    parser.add_argument("--semantic-batch-size", type=int, default=50)
-    parser.add_argument("--semantic-cache", default=DEFAULT_SEMANTIC_CACHE)
     return parser.parse_args()
 
 

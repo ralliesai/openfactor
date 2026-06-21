@@ -63,24 +63,6 @@ def attribution_index(portfolio, snapshot):
     }
 
 
-def merge_attribution(rows, index):
-    """Attach horizon contributions onto risk-decomposition rows.
-
-    Example:
-        each factor and subtotal row gains a "values" list of horizon returns.
-    """
-    if not index:
-        return rows
-    sections = {"Common Factor": index["common"], "Specific": index["specific"], "Total": index["total"]}
-    sections.update({name: index["family"][name] for name in ["Style", "Sector", "Industry"]})
-    for row in rows:
-        if row["kind"] == "factor":
-            row["values"] = index["factor"].get(row.get("key"))
-        else:
-            row["values"] = sections.get(row["label"].strip())
-    return rows
-
-
 def factor_exposure_panel(panel, weights):
     """Return the portfolio's factor exposure on every panel date.
 

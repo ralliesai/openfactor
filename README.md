@@ -80,28 +80,9 @@ MSFT,0.30
 NVDA,0.30
 ```
 
-The CLI prints one nested **Risk & Return Attribution** table (Common Factor →
-Market, Style, Sector, Industry → Specific → Total). Each factor row shows its
-exposure, active exposure, and risk share alongside its 1-day, 1-month, and
-1-quarter return contributions, so risk and realized return sit side by side
-Barra-style. Pass `--no-attribution` to drop the return columns. Missing holdings
-and any discovered semantic factors print in the footer.
-
-By default, OpenFactor loads the latest published model. For reproducible
-historical reports, pass a dated snapshot with `as_of_date` in Python or
-`--snapshot` in the CLI.
-
-### Interactive terminal (TUI)
-
-For an institutional-style, decision-oriented view, run the Textual terminal app
-(`pip install 'openfactor[tui]'` for the extra dependency):
-
-```bash
-python3.10 -m openfactor.tui --portfolio portfolio.csv
-```
-
-Unlike the static table, the TUI works in **active (tracking-error) space**
-against the cap-weighted universe benchmark and leads with the decision numbers:
+The CLI opens an interactive [Textual](https://textual.textualize.io) terminal
+that works in **active (tracking-error) space** against the cap-weighted universe
+benchmark and leads with the decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), predicted
   beta to the benchmark, and the specific share of tracking error.
@@ -114,7 +95,12 @@ against the cap-weighted universe benchmark and leads with the decision numbers:
 - **Return attribution** — per-factor contribution over 1-day / 1-month /
   1-quarter (toggle with the buttons), reconciling to the model return.
 - **Tail risk & scenarios** — parametric VaR (95% / 99%, total and active) and
-  predicted beta. Lives in [`tui/`](src/openfactor/tui/).
+  predicted beta.
+
+The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
+in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By
+default OpenFactor loads the latest published model — pass `--snapshot <date>`
+for a reproducible historical run.
 
 ## Report Output
 
