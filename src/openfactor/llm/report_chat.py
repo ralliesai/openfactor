@@ -11,7 +11,7 @@ DEFAULT_REPORT_CHAT_TURNS = 8
 
 
 class ReportChat:
-    """PM-facing chat over one rendered TUI report."""
+    """PM-facing chat over one rendered report."""
 
     def __init__(self, report, model=None, api_key=None, timeout=None):
         self.report = report
@@ -61,7 +61,7 @@ class ReportChat:
 
 
 def report_chat_enabled():
-    """Return True when the TUI should show the report chat sidebar."""
+    """Return True when the report should show the chat sidebar."""
     return bool(os.getenv("OPENAI_API_KEY"))
 
 
@@ -95,18 +95,18 @@ def report_chat_instructions():
     """Return the product contract for the PM report chat."""
     return (
         "You are an institutional PM-facing OpenFactor analyst. Use only the "
-        "provided TUI report context and JSON. Be direct, numerical, and clear "
-        "about assumptions. The report is the current TUI report, not a backtest. "
+        "provided report context and JSON. Be direct, numerical, and clear "
+        "about assumptions. The report is the current portfolio report, not a backtest. "
         "Format answers as concise Markdown for a narrow terminal sidebar: short "
         "paragraphs and bullets, no wide tables unless the PM explicitly asks. "
         "Use Code Interpreter for arithmetic, hedge sizing, and reconciliation "
-        "checks. The TUI report is the source of truth; do not assume hidden "
+        "checks. The report is the source of truth; do not assume hidden "
         "bucket files or unpublished data. "
         "If the PM asks for a beta-neutral hedge and gives no instrument, assume "
         "a SPY overlay and state the notional as a signed weight on a $1 gross "
         "book when portfolio notional is not supplied. If the PM asks for a new "
         "stock-only portfolio, only construct it when the report contains enough "
-        "per-name exposure data; otherwise say the TUI report is insufficient "
+        "per-name exposure data; otherwise say the report is insufficient "
         "and explain the missing fields. Explain what remains after hedges "
         "instead of implying risk is gone. Use idiosyncratic for residual/name-level risk and return. "
         "Avoid the legacy S-term formed by 'spec' + 'ific'; use idiosyncratic, "
@@ -120,7 +120,7 @@ def report_payload(report):
     return (
         "Rendered report context:\n"
         f"{report_context(report)}\n\n"
-        "Complete TUI report JSON:\n"
+        "Complete report JSON:\n"
         "```json\n"
         f"{full_report_json(report)}\n"
         "```"
@@ -128,7 +128,7 @@ def report_payload(report):
 
 
 def report_context(report):
-    """Return compact CSV blocks that explain the TUI report."""
+    """Return compact CSV blocks that explain the report."""
     summary = report["summary"]
     meta = report["meta"]
     frames = {
@@ -255,7 +255,7 @@ def ratio(value, denominator):
 
 
 def full_report_json(report):
-    """Return JSON for the complete TUI report."""
+    """Return JSON for the complete report."""
     return json.dumps(json_safe(report), indent=2, sort_keys=True)
 
 
@@ -282,7 +282,7 @@ def json_safe(value):
 
 
 def run_sync(coro):
-    """Run an async Agent SDK call from sync TUI code."""
+    """Run an async Agent SDK call from sync report code."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:

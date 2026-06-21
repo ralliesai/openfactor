@@ -120,8 +120,10 @@ def return_label_cell(row):
     return text
 
 
-class OpenFactorTUI(App):
+class OpenFactorApp(App):
     """Interactive risk and return terminal for one portfolio."""
+
+    TITLE = "OpenFactor"
 
     CSS = """
     .subtitle { color: $text-muted; padding: 0 1; }
@@ -202,7 +204,7 @@ class OpenFactorTUI(App):
                                 yield Static(self.footnotes_text(), classes="legend")
             if self.chat:
                 with Vertical(id="chat_sidebar"):
-                    yield Static("[b]Ask OpenFactor[/]\n[dim]Questions use this TUI report.[/]", id="chat_title")
+                    yield Static("[b]Ask OpenFactor[/]\n[dim]Questions use this report.[/]", id="chat_title")
                     yield Markdown("", id="chat_log", open_links=False)
                     yield Input(placeholder="Ask about beta, TE, attribution...", id="chat_input")
         yield Footer()
@@ -214,7 +216,7 @@ class OpenFactorTUI(App):
         self.populate_idiosyncratic_returns()
         self.populate_returns()
         if self.chat:
-            await self.append_chat("OpenFactor", "Ask about this TUI report, beta hedges, tracking error, or attribution.")
+            await self.append_chat("OpenFactor", "Ask about this report, beta hedges, tracking error, or attribution.")
 
     # ---- headline -------------------------------------------------------
     def header_line(self):

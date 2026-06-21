@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from openfactor.io.snapshot import load_snapshot
-from openfactor.tui.app import OpenFactorTUI
+from openfactor.tui.app import OpenFactorApp
 from openfactor.tui.report import tui_report
 
 
@@ -29,7 +29,7 @@ def main():
         report["track"] = realized_stats(frame)
         report["realized"] = realized_attribution(frame)
         print(f"recorded {report['meta']['as_of_date']} → {args.track} ({report['track']['days']} day(s) stored)")
-    OpenFactorTUI(report).run()
+    OpenFactorApp(report).run()
 
 
 def parse_args():
