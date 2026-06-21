@@ -3,10 +3,10 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from openfactor.console import console, print_attribution_table, print_risk_table
+from openfactor.console import console, print_report_table
 from openfactor.io.snapshot import load_snapshot
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
-from openfactor.portfolio.attribution import return_attribution
+from openfactor.portfolio.attribution import attribution_index, merge_attribution
 from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition, semantic_rows
 
@@ -39,17 +39,15 @@ def main():
                 logger=None,
             )
         )
+    index = attribution_index(portfolio, snapshot) if args.attribution else None
+    merge_attribution(rows, index)
     console.rule(
         f"[bold]OpenFactor[/bold] · {snapshot.universe_name} · "
         f"as of {snapshot.as_of_date} · {len(snapshot.universe)} tickers"
     )
-    print_risk_table(rows)
-    if args.attribution:
-        attribution = return_attribution(portfolio, snapshot)
-        if attribution:
-            print_attribution_table(attribution)
-        else:
-            console.print("[dim]return attribution needs an exposures panel; this snapshot has none[/dim]")
+    print_report_table(rows, returns=index is not None)
+    if args.attribution and index is None:
+        console.print("[dim]return attribution needs an exposures panel; this snapshot has none[/dim]")
     missing = missing_holdings(portfolio, snapshot.universe)["ticker"].tolist()
     if missing:
         console.print(f"[dim]missing holdings (not in universe): {', '.join(missing)}[/dim]")

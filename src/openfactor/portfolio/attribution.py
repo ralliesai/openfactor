@@ -27,6 +27,60 @@ def return_attribution(portfolio, snapshot):
     return attribution_rows(contrib, specific, groups)
 
 
+def attribution_index(portfolio, snapshot):
+    """Return horizon contributions keyed by factor, family, and section.
+
+    Example:
+        attribution_index(portfolio, snapshot)["factor"]["beta"] is beta's
+        1-day, 1-month, and 1-quarter return contributions.
+    """
+    panel = getattr(snapshot, "exposures_panel", None)
+    if panel is None or panel.empty:
+        return None
+    require_columns(panel, ["factor", "group"])
+    weights = weights_for(portfolio)
+    contrib = daily_contributions(factor_exposure_panel(panel, weights), snapshot.factor_returns)
+    if contrib.empty:
+        return None
+    specific = specific_contributions(snapshot.residual_returns, weights).reindex(contrib.index)
+    groups = panel.drop_duplicates("factor").set_index("factor")["group"].to_dict()
+    dates = sorted(contrib.dropna(how="all").index)
+    factor_h = trailing_sums(contrib, dates)
+    spec_h = [float(value) for value in trailing_sums(specific, dates)]
+    families = {factor: family(factor, groups) for factor in contrib.columns}
+
+    def family_sum(name):
+        members = [f for f, fam in families.items() if fam == name]
+        return [float(series.reindex(members).sum()) for series in factor_h]
+
+    common = [float(series.sum()) for series in factor_h]
+    return {
+        "factor": {f: [float(series.get(f, np.nan)) for series in factor_h] for f in contrib.columns},
+        "family": {name: family_sum(name) for name in ["Market", "Style", "Sector", "Industry"]},
+        "common": common,
+        "specific": spec_h,
+        "total": [c + s for c, s in zip(common, spec_h)],
+    }
+
+
+def merge_attribution(rows, index):
+    """Attach horizon contributions onto risk-decomposition rows.
+
+    Example:
+        each factor and subtotal row gains a "values" list of horizon returns.
+    """
+    if not index:
+        return rows
+    sections = {"Common Factor": index["common"], "Specific": index["specific"], "Total": index["total"]}
+    sections.update({name: index["family"][name] for name in ["Style", "Sector", "Industry"]})
+    for row in rows:
+        if row["kind"] == "factor":
+            row["values"] = index["factor"].get(row.get("key"))
+        else:
+            row["values"] = sections.get(row["label"].strip())
+    return rows
+
+
 def factor_exposure_panel(panel, weights):
     """Return the portfolio's factor exposure on every panel date.
 

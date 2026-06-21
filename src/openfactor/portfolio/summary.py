@@ -68,16 +68,16 @@ def decomposition_rows(fr, summary, common_share, specific_share):
     """
     rows = [risk_row("Common Factor", "section", summary["common_factor"], summary["active_factor"], common_share)]
     if "market" in fr.index:
-        rows.append(leaf(fr.loc["market"], "  ", "Market"))
+        rows.append(leaf(fr.loc["market"], "  ", "Market", "market"))
     for name in ["Style", "Sector", "Industry"]:
         sub = fr[fr["family"] == name]
         if sub.empty:
             continue
         rows.append(node(f"  {name}", "group", pct=float(sub["pct"].sum())))
         for factor, row in sub.sort_values("pct", ascending=False).iterrows():
-            rows.append(leaf(row, "    ", clean_label(factor)))
+            rows.append(leaf(row, "    ", clean_label(factor), factor))
     rows.append(risk_row("Specific", "section", summary["specific"], summary["active_specific"], specific_share))
-    rows.append(risk_row("Total Risk", "total", summary["total"], summary["tracking_error"], 1.0))
+    rows.append(risk_row("Total", "total", summary["total"], summary["tracking_error"], 1.0))
     return rows
 
 
@@ -85,7 +85,7 @@ def risk_row(label, kind, volatility, active, pct):
     """Return one summary risk row carrying portfolio and active volatility.
 
     Example:
-        Total Risk shows the portfolio total and the tracking error.
+        Total shows the portfolio total risk and the tracking error.
     """
     return node(label, kind, active=active, volatility=volatility, pct=pct)
 
@@ -104,7 +104,7 @@ def semantic_rows(result):
     return rows
 
 
-def leaf(row, indent, label):
+def leaf(row, indent, label, key):
     """Return one factor row.
 
     Example:
@@ -118,17 +118,18 @@ def leaf(row, indent, label):
         volatility=float(row["factor_volatility"]),
         pct=float(row["pct"]),
         family=row["family"],
+        key=key,
     )
 
 
-def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.nan, family=None):
+def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.nan, family=None, key=None):
     """Return one decomposition row.
 
     Example:
         node("Specific", "section", pct=0.36) is a bold subtotal row.
     """
     return {"label": label, "kind": kind, "exposure": exposure, "active": active,
-            "volatility": volatility, "pct": pct, "family": family}
+            "volatility": volatility, "pct": pct, "family": family, "key": key}
 
 
 def risk_summary(factor_var, specific, ar, active, snapshot):

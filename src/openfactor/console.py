@@ -71,19 +71,22 @@ def echo(message=""):
         console.print(text, markup=False, highlight=True)
 
 
-def print_risk_table(rows):
-    """Print the whole risk report as one nested table.
+def print_report_table(rows, returns=True):
+    """Print risk decomposition and return attribution as one Barra-style table.
 
     Example:
-        summary risks, factor detail, and semantic factors share one table.
+        each factor shows its exposure and risk share next to its 1-day,
+        1-month, and 1-quarter return contributions.
     """
-    table = Table(title="Risk Decomposition", title_style="bold cyan", title_justify="left", header_style="bold magenta")
+    title = "Risk & Return Attribution" if returns else "Risk Decomposition"
+    table = Table(title=title, title_style="bold cyan", title_justify="left", header_style="bold magenta")
     table.add_column("Factor")
-    for name in ["Exposure", "Active", "Volatility", "% Risk"]:
+    columns = ["Exposure", "Active", "Volatility", "% Risk"] + (["Ret 1D", "Ret 1M", "Ret 1Q"] if returns else [])
+    for name in columns:
         table.add_column(name, justify="right")
     styles = {"section": "bold", "group": "bold cyan", "total": "bold"}
     for row in rows:
-        if row["kind"] in ("section",) and row["label"] == "Semantic Factors":
+        if row["kind"] == "section" and row["label"] == "Semantic Factors":
             table.add_section()
         if row["kind"] == "total":
             table.add_section()
@@ -95,25 +98,9 @@ def print_risk_table(rows):
         else:
             active = num(row["active"])
         cells = [row["label"], num(row["exposure"]), active, pct(row["volatility"]), pct(row["pct"])]
-        table.add_row(*cells, style=styles.get(row["kind"]))
-    console.print(table)
-
-
-def print_attribution_table(rows):
-    """Print the return attribution report as one nested table.
-
-    Example:
-        common-factor and specific contributions across 1-day to 1-quarter.
-    """
-    table = Table(title="Return Attribution", title_style="bold cyan", title_justify="left", header_style="bold magenta")
-    table.add_column("Factor")
-    for name in ["1 Day", "1 Month", "1 Quarter"]:
-        table.add_column(name, justify="right")
-    styles = {"section": "bold", "group": "bold cyan", "total": "bold"}
-    for row in rows:
-        if row["kind"] == "total":
-            table.add_section()
-        cells = [row["label"], *[signed_pct(value) for value in row["values"]]]
+        if returns:
+            values = row.get("values") or [None, None, None]
+            cells += [signed_pct(value) for value in values]
         table.add_row(*cells, style=styles.get(row["kind"]))
     console.print(table)
 
