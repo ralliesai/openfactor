@@ -130,12 +130,12 @@ class OpenFactorTUI(App):
     .legend { color: $text-muted; padding: 0 1; }
     #main { height: 1fr; }
     #report_area { width: 1fr; height: 1fr; }
-    #report_scroll { width: 1fr; height: 1fr; scrollbar-size: 1 1; }
+    #report_scroll { width: 1fr; height: 1fr; scrollbar-size-horizontal: 1; scrollbar-size-vertical: 0; }
     #columns { height: auto; }
     .col { width: 1fr; height: auto; }
-    #chat_sidebar { width: 52; height: 1fr; padding: 0 1; }
+    #chat_sidebar { width: 52; height: 1fr; border-left: vkey $foreground 25%; padding: 0 1 0 2; }
     #chat_title { height: auto; padding: 0 0 1 0; }
-    #chat_log { height: 1fr; padding: 0; overflow-y: auto; overflow-x: hidden; scrollbar-size: 1 1; }
+    #chat_log { height: 1fr; padding: 0; overflow-y: auto; overflow-x: hidden; scrollbar-size-horizontal: 0; scrollbar-size-vertical: 1; }
     #chat_input { height: 3; border: none; padding: 0 1; }
     #chat_input:focus { border: none; background-tint: $foreground 5%; }
     Collapsible { margin: 0 1 1 0; }
