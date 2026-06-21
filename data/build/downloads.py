@@ -56,6 +56,26 @@ class ProviderDownloader:
         )
         return self.required_table(rows, "prices", 1.0, "no usable price rows")
 
+    def index_prices(self, tickers, start_date, end_date):
+        """Download public index proxy prices from Massive.
+
+        Example:
+            downloader.index_prices(["SPY"], "2024-01-01", "2024-01-31")
+            returns adjusted ETF proxy bars without adding SPY to the stock universe.
+        """
+        rows = self.threaded_map(
+            "index prices",
+            tickers,
+            lambda ticker: self.price_rows(ticker, start_date, end_date),
+            self.workers,
+        )
+        rows = self.retry_missing(
+            "index prices retry",
+            rows,
+            lambda ticker: self.price_rows(ticker, start_date, end_date),
+        )
+        return self.required_table(rows, "index prices", 1.0, "no usable index price rows")
+
     def reference(self, tickers, as_of_date, min_coverage=REQUIRED_COVERAGE):
         """Download market reference rows from Massive.
 

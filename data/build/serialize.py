@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from openfactor.io.snapshot import SNAPSHOT_FILES
+from openfactor.io.indexes import INDEX_COLUMNS, INDEX_PRICE_COLUMNS, INDEX_RETURN_COLUMNS
 from openfactor.model.exposures import exposure_matrix
 
 
@@ -83,7 +84,41 @@ def snapshot_csvs(snapshot):
         (SNAPSHOT_FILES["specific_risk"], spreadsheet_csv(sort_tickers(snapshot.specific_risk))),
         (SNAPSHOT_FILES["universe"], spreadsheet_csv(sort_tickers(snapshot.universe))),
     ]
+    files += index_csvs(snapshot)
     return files
+
+
+def index_csvs(snapshot):
+    """Return public index files when the snapshot carries them."""
+    files = []
+    if present(snapshot, "indexes"):
+        files.append((SNAPSHOT_FILES["indexes"], spreadsheet_csv(index_file(snapshot.indexes))))
+    if present(snapshot, "index_prices"):
+        files.append((SNAPSHOT_FILES["index_prices"], spreadsheet_csv(index_prices_file(snapshot.index_prices))))
+    if present(snapshot, "index_returns"):
+        files.append((SNAPSHOT_FILES["index_returns"], spreadsheet_csv(index_returns_file(snapshot.index_returns))))
+    return files
+
+
+def present(snapshot, name):
+    """Return True when a snapshot frame exists and has rows."""
+    frame = getattr(snapshot, name, None)
+    return frame is not None and not frame.empty
+
+
+def index_file(indexes):
+    """Return the public index metadata table."""
+    return keep_columns(indexes, INDEX_COLUMNS).sort_values("ticker").reset_index(drop=True)
+
+
+def index_prices_file(prices):
+    """Return public index prices sorted by date and ticker."""
+    return keep_columns(prices, INDEX_PRICE_COLUMNS).sort_values(["date", "ticker"]).reset_index(drop=True)
+
+
+def index_returns_file(returns):
+    """Return public index returns sorted by date and ticker."""
+    return keep_columns(returns, INDEX_RETURN_COLUMNS).sort_values(["date", "ticker"]).reset_index(drop=True)
 
 
 def panel_gzip(snapshot):

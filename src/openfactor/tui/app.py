@@ -194,6 +194,17 @@ class OpenFactorTUI(App):
 
     def benchmark_text(self):
         b = self.report["meta"]["benchmark"]
+        if b.get("kind") == "index":
+            tilt = "—" if b["risk_max_style_tilt"] is None else f"{b['risk_max_style_tilt']:.2f}σ"
+            return (
+                f"[b]{b['name']}[/] · {b['tagline']}\n"
+                f"{b['ticker']} returns from {b['return_source']} · risk benchmark {b['risk_name']}\n"
+                f"[dim]Return attribution is benchmarked to the public index return. Ex-ante tracking error "
+                f"and beta still use the model risk benchmark ({b['risk_constituents']} constituents, "
+                f"top-10 weight {pct1(b['risk_top10_weight'])}, effective names "
+                f"{b['risk_effective_names']:.0f}, largest style tilt {tilt}) until index look-through "
+                f"or index factor exposures are published.[/]"
+            )
         tilt = "—" if b["max_style_tilt"] is None else f"{b['max_style_tilt']:.2f}σ"
         return (
             f"[b]{b['name']}[/] · {b['tagline']}\n"
@@ -210,7 +221,7 @@ class OpenFactorTUI(App):
         var = s["var"]["95%"]
         return [
             card("Total risk", pct1(s["total_risk"]), "annualized volatility"),
-            card("Tracking error", pct1(s["tracking_error"]), "active risk vs benchmark"),
+            card("Tracking error", pct1(s["tracking_error"]), s["tracking_error_label"]),
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
             card("Ex-ante beta", beta_value(s["predicted_beta"]), self.beta_card_sub()),
             card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
@@ -311,7 +322,8 @@ class OpenFactorTUI(App):
                  else "[yellow]current-weights backtest — assumes you held today's book the whole window[/]")
         self.query_one("#returns_summary", Static).update(
             f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   {badge}\n"
-            f"Benchmark return {signed(r['benchmark_ret'][h])}  +  Active return {signed(r['active_ret'][h])}"
+            f"{r['meta']['benchmark']['name']} return {signed(r['benchmark_ret'][h])}"
+            f"  +  Active return {signed(r['active_ret'][h])}"
             f"   =   Portfolio {signed(r['portfolio_ret'][h])}\n"
             f"[dim]the table reconciles active return; ranked factor contributors are separate "
             f"({tail} smaller factors folded)[/]"
@@ -324,6 +336,18 @@ class OpenFactorTUI(App):
         r = self.report
         active = r["active_ret"][horizon]
         recon = []
+        basis = r["benchmark_basis_ret"][horizon]
+        if not missing(basis) and abs(basis) > 1e-9:
+            recon.append(
+                return_row(
+                    "Market factor - benchmark",
+                    "Benchmark basis",
+                    basis,
+                    share_of(basis, active),
+                    None,
+                    "section",
+                )
+            )
         for name in ["Style", "Sector", "Industry"]:
             value = family_value(r, name, horizon)
             te = family_te_share(r["active_rows"], name)
@@ -401,13 +425,25 @@ class OpenFactorTUI(App):
         self.query_one("#returns_summary", Static).update(
             f"[b]Realized · {real['days']} trading day(s)[/] · {real['date_range']}   "
             "[green]your actual book, summed day by day[/]\n"
-            f"Benchmark return {signed(real['benchmark'])}  +  Active return {signed(real['active'])}"
+            f"{r['meta']['benchmark']['name']} return {signed(real['benchmark'])}"
+            f"  +  Active return {signed(real['active'])}"
             f"   =   Portfolio {signed(real['portfolio'])}\n"
             f"[dim]each day's real holdings — not today's weights run backward; "
             f"the table reconciles active return; ranked factor contributors are separate "
             f"({tail} smaller factors folded)[/]"
         )
         recon = []
+        if abs(real.get("basis", 0.0)) > 1e-9:
+            recon.append(
+                return_row(
+                    "Market factor - benchmark",
+                    "Benchmark basis",
+                    real["basis"],
+                    share_of(real["basis"], real["active"]),
+                    None,
+                    "section",
+                )
+            )
         for name, value in realized_family_values(real["factor"], lookup).items():
             te = family_te_share(r["active_rows"], name)
             if abs(value) > 1e-9:
@@ -454,7 +490,7 @@ class OpenFactorTUI(App):
         s = self.report["summary"]
         return (
             f"Common factor {pct1(s['factor_share'])} of total variance · "
-            f"specific {pct1(s['specific_share_total'])} · "
+            f"idiosyncratic {pct1(s['specific_share_total'])} · "
             f"active tracking error {pct1(s['tracking_error'])}"
         )
 
@@ -470,7 +506,8 @@ class OpenFactorTUI(App):
         lines = ["[b]Parametric loss estimate[/] (normal, one-day)"]
         for conf, value in s["var"].items():
             lines.append(f"  {conf}:  total {pct1(value['total_1d'])}   active {pct1(value['active_1d'])}")
-        lines.append(f"[b]Ex-ante beta[/] to benchmark: {beta_value(s['predicted_beta'])}")
+        target = "model risk benchmark" if self.report["meta"]["benchmark"].get("kind") == "index" else "benchmark"
+        lines.append(f"[b]Ex-ante beta[/] to {target}: {beta_value(s['predicted_beta'])}")
         lines += self.track_lines()
         lines.append("[dim]Historical and macro scenarios are not shown because the published snapshot "
                      "does not carry an external shock library. They are omitted rather than faked.[/]")
@@ -501,7 +538,7 @@ class OpenFactorTUI(App):
             "They are forecasts, not realized history.",
             "[2] Realized beta appears only with --track history and is computed from stored portfolio "
             "returns versus stored benchmark returns.",
-            "[3] Tracking error is active risk: portfolio minus the cap-weighted model benchmark.",
+            "[3] Tracking error is active risk from today's holdings versus the model risk benchmark.",
             "[4] TE contribution is variance contribution divided by total tracking error; negative values "
             "are diversifiers in the current covariance matrix.",
             "[5] Idiosyncratic risk is stock-level residual risk after common factors. It is not automatically "

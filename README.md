@@ -107,11 +107,13 @@ NVDA,0.30
 ```
 
 The CLI opens an interactive [Textual](https://textual.textualize.io) terminal
-that works in **active (tracking-error) space** against the cap-weighted universe
-benchmark and leads with the decision numbers:
+that uses SPY as the default return benchmark when public index files are
+present, keeps ex-ante tracking error in model-risk space, and leads with the
+decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
-  beta to the benchmark, and the idiosyncratic share of tracking error.
+  beta to the model risk benchmark, and the idiosyncratic share of tracking
+  error.
 - **Portfolio risk** — the current absolute risk decomposition: common factor,
   market, style, sector, industry, idiosyncratic, and total risk.
 - **Active risk** — every factor's active exposure and its **% of the
@@ -539,9 +541,16 @@ portfolio level to give factor, idiosyncratic, and total risk.
 
 ### Benchmark and active risk
 
-The report also measures risk relative to a benchmark. The built-in benchmark is
-the **cap-weighted model universe** — every constituent weighted by market cap —
-so it ships with the model and needs no index license.
+The report carries public index benchmark files for SPY, QQQ, and IWM outside
+the stock factor universe. Return attribution uses **S&P 500 via SPY** as the
+default benchmark return when `index_returns.csv` is present, so the headline is
+SPY benchmark return plus active return equals portfolio return.
+
+The ex-ante risk model still needs a holdings-style risk benchmark. Until
+OpenFactor publishes index look-through or index factor exposures, tracking error
+and model beta use the **cap-weighted model universe** — every model constituent
+weighted by market cap — because that risk benchmark ships with the model and
+needs no index license.
 
 Active exposures are the portfolio's exposures minus the benchmark's
 (`active = portfolio − benchmark`), and the same factor covariance and
@@ -552,12 +561,13 @@ as the portfolio's tilts, the market factor nets to zero, and sector and industr
 carry the real benchmark-relative bets.
 
 Return attribution uses the same model factors: lagged exposures times realized
-factor returns, plus idiosyncratic returns. The headline shows benchmark return plus
-active return equals portfolio return; the table below reconciles active return
-through style, sector, industry, and idiosyncratic contribution rows. `% Active` is
-contribution divided by active return, so it can exceed 100% when positive and
-negative drivers offset. `TE Share` is the same factor's contribution to
-tracking error from the ex-ante risk model.
+factor returns, plus idiosyncratic returns. When the public index benchmark is
+different from the model market factor, the active-return table adds a
+`Market factor - benchmark` basis row so style, sector, industry,
+idiosyncratic, and basis contributions reconcile exactly to active return.
+`% Active` is contribution divided by active return, so it can exceed 100% when
+positive and negative drivers offset. `TE Share` is the same factor's
+contribution to tracking error from the ex-ante risk model.
 
 ## Model Quality
 
@@ -631,6 +641,9 @@ residual_returns.csv
 factor_covariance.csv
 specific_risk.csv
 universe.csv
+indexes.csv
+index_prices.csv
+index_returns.csv
 metadata.json
 ```
 
@@ -648,6 +661,9 @@ Current public files:
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
 | Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
+| Index metadata | [indexes.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/indexes.csv) |
+| Index prices | [index_prices.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_prices.csv) |
+| Index returns | [index_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_returns.csv) |
 | Semantic cache | [semantic_factors.csv](https://openfactor-data.rallies.ai/semantic_factors.csv) |
 
 The runtime loader reads the public model files and returns:
@@ -659,6 +675,9 @@ snapshot.factor_returns
 snapshot.residual_returns
 snapshot.factor_covariance
 snapshot.specific_risk
+snapshot.indexes
+snapshot.index_prices
+snapshot.index_returns
 snapshot.metadata
 ```
 

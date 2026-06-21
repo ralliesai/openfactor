@@ -130,14 +130,32 @@ def realized_attribution(frame):
             factor[name] = factor.get(name, 0.0) + value
     specific = float(pd.to_numeric(rows["specific_contrib"], errors="coerce").fillna(0.0).sum())
     market = factor.pop("market", 0.0)
-    active = sum(factor.values()) + specific
+    benchmark = realized_sum(rows, "benchmark_return")
+    portfolio = realized_sum(rows, "portfolio_return")
+    basis = market - benchmark if benchmark is not None else 0.0
+    active = realized_sum(rows, "active_return")
+    if active is None:
+        active = sum(factor.values()) + specific + basis
+    if benchmark is None:
+        benchmark = market
+    if portfolio is None:
+        portfolio = benchmark + active
     dates = sorted(rows["date"].astype(str))
     return {
         "days": int(len(rows)),
         "date_range": dates[-1] if len(dates) == 1 else f"{dates[0]} → {dates[-1]}",
         "factor": factor,
         "specific": specific,
-        "benchmark": market,
+        "basis": basis,
+        "benchmark": benchmark,
         "active": active,
-        "portfolio": market + active,
+        "portfolio": portfolio,
     }
+
+
+def realized_sum(rows, column):
+    """Return a numeric column sum from realized track rows, or None."""
+    if column not in rows:
+        return None
+    values = pd.to_numeric(rows[column], errors="coerce").dropna()
+    return float(values.sum()) if len(values) else None

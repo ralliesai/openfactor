@@ -32,6 +32,12 @@ from data.providers.massive import MassiveClient
 from data.publish.r2 import R2Client
 from openfactor import default_price_factors, default_reference_factors
 from openfactor.core.matrix import price_matrix
+from openfactor.io.indexes import (
+    DEFAULT_BENCHMARK_TICKER,
+    DEFAULT_INDEX_TICKERS,
+    index_metadata,
+    index_returns_from_prices,
+)
 from openfactor.io.snapshot import Snapshot
 from openfactor.model.factor_returns import factor_model_history
 from openfactor.model.normalize import normalize_exposures
@@ -67,6 +73,7 @@ class BuildResult:
     prices: pd.DataFrame
     reference: pd.DataFrame
     fundamentals: pd.DataFrame
+    index_prices: pd.DataFrame = None
 
 
 class DatasetBuilder:
@@ -113,6 +120,7 @@ class DatasetBuilder:
         start_date = price_start_date(self.as_of_date)
         tickers = self.tickers or self.model_universe()
         prices = self.downloader.prices(tickers, start_date, self.as_of_date)
+        index_prices = self.downloader.index_prices(DEFAULT_INDEX_TICKERS, start_date, self.as_of_date)
         matrix = price_matrix(prices, require_volume=True)
         LOGGER.info(
             "prices ready rows=%s tickers=%s dates=%s",
@@ -149,9 +157,9 @@ class DatasetBuilder:
             reference,
             self.reference_as_of(fundamentals, matrix.dates[-1]),
         )
-        return self.result_from_ready_inputs(matrix, prices, current_reference, fundamentals)
+        return self.result_from_ready_inputs(matrix, prices, current_reference, fundamentals, index_prices=index_prices)
 
-    def result_from_ready_inputs(self, matrix, prices, current_reference, fundamentals, metadata=None):
+    def result_from_ready_inputs(self, matrix, prices, current_reference, fundamentals, metadata=None, index_prices=None):
         """Return a complete BuildResult from model-ready inputs.
 
         Example:
@@ -196,8 +204,11 @@ class DatasetBuilder:
             factor_covariance=factor_covariance(factor_returns),
             specific_risk=specific_risk_from_residuals(residuals),
             universe=self.universe_frame(matrix.tickers, matrix.dates[-1]),
-            metadata=self.metadata(matrix, prices, factor_returns, metadata),
+            metadata=self.metadata(matrix, prices, factor_returns, metadata, index_prices),
             exposures_panel=exposures_panel,
+            indexes=index_metadata(DEFAULT_INDEX_TICKERS),
+            index_prices=index_prices,
+            index_returns=index_returns_from_prices(index_prices) if index_prices is not None else None,
         )
         LOGGER.info(
             "snapshot ready as_of_date=%s tickers=%s factors=%s",
@@ -205,7 +216,7 @@ class DatasetBuilder:
             len(snapshot.universe),
             len(snapshot.factor_returns.columns),
         )
-        return BuildResult(snapshot, prices, self.reference_file(current_reference), fundamentals)
+        return BuildResult(snapshot, prices, self.reference_file(current_reference), fundamentals, index_prices)
 
     def model_universe(self):
         """Return top US common stocks by current market cap.
@@ -358,7 +369,7 @@ class DatasetBuilder:
         """
         return pd.DataFrame({"as_of_date": str(as_of_date), "ticker": tickers})
 
-    def metadata(self, matrix, prices, factor_returns, extra=None):
+    def metadata(self, matrix, prices, factor_returns, extra=None, index_prices=None):
         """Return snapshot metadata used by loaders and audits.
 
         Example:
@@ -374,6 +385,15 @@ class DatasetBuilder:
             "risk_window": RISK_WINDOW,
             "market_cap_source": "sec_shares_outstanding_x_daily_unadjusted_close",
         }
+        if index_prices is not None:
+            data.update(
+                {
+                    "benchmark_return_ticker": DEFAULT_BENCHMARK_TICKER,
+                    "benchmark_return_source": "index_returns.csv",
+                    "index_tickers": list(DEFAULT_INDEX_TICKERS),
+                    "index_price_rows": int(len(index_prices)),
+                }
+            )
         if extra:
             data.update(extra)
         return data

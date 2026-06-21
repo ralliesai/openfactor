@@ -32,6 +32,9 @@ PUBLIC_FILES = [
     "factor_covariance.csv",
     "specific_risk.csv",
     "universe.csv",
+    "indexes.csv",
+    "index_prices.csv",
+    "index_returns.csv",
     "metadata.json",
 ]
 PRIVATE_FILES = [

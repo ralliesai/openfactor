@@ -1,5 +1,10 @@
 import re
 
+from openfactor.io.indexes import (
+    DEFAULT_BENCHMARK_TICKER,
+    index_label,
+    trailing_index_returns,
+)
 from openfactor.portfolio.active_risk import (
     active_risk_report,
     benchmark_profile,
@@ -33,15 +38,19 @@ def tui_report(portfolio, snapshot):
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
     blank = [None] * len(HORIZONS)
     portfolio_ret = index["total"] if index else blank
-    benchmark_ret = index["factor"].get("market") if index and index["factor"].get("market") is not None else blank
+    market_ret = index["factor"].get("market") if index and index["factor"].get("market") is not None else blank
+    dates = return_dates(snapshot)
+    benchmark_ret, benchmark_kind = benchmark_returns(snapshot, dates, market_ret)
+    benchmark_basis = [diff(m, b) if benchmark_kind == "index" else 0.0 for m, b in zip(market_ret, benchmark_ret)]
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
     return {
         "today": today_contributions(index),
-        "meta": meta(portfolio, snapshot),
+        "meta": meta(portfolio, snapshot, benchmark_context(snapshot, benchmark_kind)),
         "risk_rows": rows,
         "summary": {
             "total_risk": total["volatility"],
             "tracking_error": active["tracking_error"],
+            "tracking_error_label": tracking_error_label(benchmark_kind),
             "factor_share": common["pct"],
             "specific_share_total": specific["pct"],
             "specific_share_te": active["specific_share"],
@@ -58,10 +67,12 @@ def tui_report(portfolio, snapshot):
         "family_ret": index["family"] if index else {},
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
+        "market_ret": market_ret,
+        "benchmark_basis_ret": benchmark_basis,
         "active_ret": active_ret,
         "names": names,
         "horizons": HORIZONS,
-        "horizon_dates": horizon_dates(snapshot),
+        "horizon_dates": horizon_labels(dates),
         "track": None,
         "realized": None,
     }
@@ -87,13 +98,17 @@ def num(value):
     return 0.0 if value is None or value != value else float(value)
 
 
-def horizon_dates(snapshot):
+def return_dates(snapshot):
+    """Return factor-return dates as display-safe strings."""
+    return sorted(str(date) for date in snapshot.factor_returns.index)
+
+
+def horizon_labels(dates):
     """Return a display date or date range for each return horizon.
 
     Example:
         1 Day shows the latest date; 1 Quarter shows "start → end".
     """
-    dates = sorted(str(date) for date in snapshot.factor_returns.index)
     labels = []
     for window in WINDOWS:
         if not dates:
@@ -103,6 +118,15 @@ def horizon_dates(snapshot):
         else:
             labels.append(f"{dates[max(0, len(dates) - window)]} → {dates[-1]}")
     return labels
+
+
+def benchmark_returns(snapshot, dates, market_ret):
+    """Return report benchmark returns, preferring the public SPY index file."""
+    ticker = str(snapshot.metadata.get("benchmark_return_ticker", DEFAULT_BENCHMARK_TICKER)).upper()
+    values = trailing_index_returns(getattr(snapshot, "index_returns", None), dates, WINDOWS, ticker)
+    if any(value is not None for value in values):
+        return values, "index"
+    return market_ret, "model"
 
 
 def diff(left, right):
@@ -116,7 +140,7 @@ def attach_returns(rows, index):
         row["ret"] = index["factor"].get(row["factor"]) if index else None
 
 
-def meta(portfolio, snapshot):
+def meta(portfolio, snapshot, benchmark):
     """Return universe context, dropped holdings, and the benchmark proxy."""
     missing = missing_holdings(portfolio, snapshot.universe)["ticker"].astype(str).tolist()
     return {
@@ -127,12 +151,41 @@ def meta(portfolio, snapshot):
         "holdings": [{"ticker": str(ticker), "weight": float(weight)}
                      for ticker, weight in zip(portfolio["ticker"], portfolio["allocation"])],
         "missing": missing,
-        "benchmark": {
-            "name": benchmark_label(snapshot.universe_name),
-            "tagline": "cap-weighted model benchmark",
-            **benchmark_profile(snapshot),
-        },
+        "benchmark": benchmark,
     }
+
+
+def benchmark_context(snapshot, kind):
+    """Return benchmark display context without hiding the risk benchmark."""
+    if kind == "index":
+        ticker = str(snapshot.metadata.get("benchmark_return_ticker", DEFAULT_BENCHMARK_TICKER)).upper()
+        profile = benchmark_profile(snapshot)
+        return {
+            "name": index_label(getattr(snapshot, "indexes", None), ticker),
+            "tagline": "public index benchmark",
+            "kind": "index",
+            "ticker": ticker,
+            "return_source": snapshot.metadata.get("benchmark_return_source", "index_returns.csv"),
+            "risk_name": benchmark_label(snapshot.universe_name),
+            "risk_tagline": "cap-weighted model risk benchmark",
+            "risk_constituents": profile["constituents"],
+            "risk_top10_weight": profile["top10_weight"],
+            "risk_effective_names": profile["effective_names"],
+            "risk_max_style_tilt": profile["max_style_tilt"],
+        }
+    return {
+        "name": benchmark_label(snapshot.universe_name),
+        "tagline": "cap-weighted model benchmark",
+        "kind": "model",
+        **benchmark_profile(snapshot),
+    }
+
+
+def tracking_error_label(benchmark_kind):
+    """Return the card label for the ex-ante active-risk benchmark."""
+    if benchmark_kind == "index":
+        return "active risk vs model benchmark"
+    return "active risk vs benchmark"
 
 
 def benchmark_label(universe):

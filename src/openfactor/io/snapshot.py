@@ -18,6 +18,9 @@ SNAPSHOT_FILES = {
     "factor_covariance": "factor_covariance.csv",
     "specific_risk": "specific_risk.csv",
     "universe": "universe.csv",
+    "indexes": "indexes.csv",
+    "index_prices": "index_prices.csv",
+    "index_returns": "index_returns.csv",
 }
 
 
@@ -40,6 +43,9 @@ class Snapshot:
     universe: pd.DataFrame
     metadata: dict
     exposures_panel: pd.DataFrame = None
+    indexes: pd.DataFrame = None
+    index_prices: pd.DataFrame = None
+    index_returns: pd.DataFrame = None
 
 
 def load_snapshot(universe, as_of_date="latest", include_exposures_panel=False):
@@ -88,6 +94,9 @@ def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None, include_exp
         universe=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['universe']}", cache_bust)),
         metadata=metadata,
         exposures_panel=load_exposures_panel(prefix, cache_bust, include_exposures_panel),
+        indexes=read_csv_optional(with_query(f"{prefix}/{SNAPSHOT_FILES['indexes']}", cache_bust)),
+        index_prices=read_csv_optional(with_query(f"{prefix}/{SNAPSHOT_FILES['index_prices']}", cache_bust)),
+        index_returns=read_csv_optional(with_query(f"{prefix}/{SNAPSHOT_FILES['index_returns']}", cache_bust)),
     )
 
 

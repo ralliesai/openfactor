@@ -92,7 +92,7 @@ def sector_report(exposures, portfolio):
     matrix = exposure_matrix(sectors)
     weights = weights_for(portfolio).reindex(matrix.index)
     allocation = matrix.multiply(weights, axis=0).sum()
-    return allocation[allocation > 0].rename("allocation").to_frame()
+    return allocation[allocation != 0].rename("allocation").to_frame()
 
 
 def with_display_index(frame):

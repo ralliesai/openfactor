@@ -36,6 +36,9 @@ residual_returns.csv
 factor_covariance.csv
 specific_risk.csv
 universe.csv
+indexes.csv
+index_prices.csv
+index_returns.csv
 metadata.json
 ```
 
@@ -52,6 +55,9 @@ Current public files:
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
 | Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
+| Index metadata | [indexes.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/indexes.csv) |
+| Index prices | [index_prices.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_prices.csv) |
+| Index returns | [index_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_returns.csv) |
 
 ## Private Inputs
 
