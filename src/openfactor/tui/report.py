@@ -55,6 +55,7 @@ def tui_report(portfolio, snapshot):
         "specific_te_share": active["specific_share"],
         "specific_te_contribution": active["specific_contribution"],
         "specific_ret": index["specific"] if index else blank,
+        "family_ret": index["family"] if index else {},
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
         "active_ret": active_ret,

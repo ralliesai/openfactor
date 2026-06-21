@@ -75,7 +75,7 @@ def discover_semantic_factors(
 
     Example:
         discover_semantic_factors(portfolio, snapshot, threshold=0.20)
-        only asks the LLM when stock-specific variance share is at least 20%.
+        only asks the LLM when idiosyncratic variance share is at least 20%.
     """
     weights, skipped_holdings = usable_weights(portfolio, snapshot, window)
     if len(weights) < 2:
@@ -135,7 +135,7 @@ def usable_weights(portfolio, snapshot, window, min_rows=20):
 
 
 def residual_share(snapshot, weights):
-    """Return stock-specific variance share as a decimal.
+    """Return idiosyncratic variance share as a decimal.
 
     Example:
         25 in report["risk_share"] becomes 0.25.

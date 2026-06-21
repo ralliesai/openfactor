@@ -156,7 +156,7 @@ class DatasetBuilder:
 
         Example:
             result_from_ready_inputs(matrix, prices, reference, fundamentals)
-            computes exposures, factor returns, covariance, and specific risk.
+            computes exposures, factor returns, covariance, and idiosyncratic risk.
         """
         validate_fundamental_share_sources(fundamentals)
         validate_market_cap_formula(fundamentals, prices)

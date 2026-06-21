@@ -59,7 +59,7 @@ def portfolio_report(portfolio, snapshot):
         "missing_holdings": missing_holdings(portfolio, snapshot.universe),
         "style": with_display_index(style_report(snapshot.exposures, portfolio)),
         "sector": sector_report(snapshot.exposures, portfolio),
-        "specific_risk": stock_specific_report(snapshot.specific_risk, portfolio),
+        "specific_risk": idiosyncratic_report(snapshot.specific_risk, portfolio),
         "factor_risk": factor_risk,
         "active_risk": active_risk,
         "risk_share": risk_explanation_report(factor_risk, snapshot.specific_risk, portfolio),
@@ -120,7 +120,7 @@ def display_factor_name(name):
     return FACTOR_DISPLAY_NAMES.get(name, name.replace("_", " ").title())
 
 
-def stock_specific_report(risks, portfolio):
+def idiosyncratic_report(risks, portfolio):
     """Return idiosyncratic risk for portfolio tickers.
 
     Example:

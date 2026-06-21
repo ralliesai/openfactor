@@ -94,11 +94,13 @@ benchmark and leads with the decision numbers:
   error through covariance) are shown in green.
 - **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
-- **Return attribution** — model benchmark → portfolio → active (excess) over
-  1-day (default) / 1-week (toggle with the buttons), with the date range and the
-  per-factor split of the active return. 1-day is your book's actual day; 1-week
-  is badged as a current-weights backtest. Longer real attribution comes from an
-  accumulated `--track` history, not from running today's weights back.
+- **Active return attribution** — market factor + active return = portfolio
+  return over 1-day (default) / 1-week (toggle with the buttons). The table
+  reconciles active return by factor block, then shows top factor contributors
+  with contribution, `% Active`, and `% TE` side by side. 1-day is your book's
+  actual day; 1-week is badged as a current-weights backtest. Longer real
+  attribution comes from an accumulated `--track` history, not from running
+  today's weights back.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
@@ -521,6 +523,13 @@ total **tracking error**. Because style exposures are cap-weighted standardized,
 the benchmark sits near zero on every style factor: active style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
 carry the real benchmark-relative bets.
+
+Return attribution uses the same model factors: lagged exposures times realized
+factor returns, plus idiosyncratic residual returns. The market factor is shown
+as the base model-market return; style, sector, industry, and idiosyncratic rows
+reconcile active return. `% Active` is contribution divided by active return, so
+it can exceed 100% when positive and negative drivers offset. `% TE` is the same
+factor's contribution to tracking error from the ex-ante risk model.
 
 ## Model Quality
 

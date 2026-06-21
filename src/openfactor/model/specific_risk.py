@@ -6,7 +6,7 @@ from openfactor.model.factor_returns import factor_model_history
 
 
 def specific_risk_from_residuals(residuals):
-    """Return annualized stock-specific risk from residual returns.
+    """Return annualized idiosyncratic risk from residual returns.
 
     Example:
         daily residuals with 1% volatility become about 15.9% annual risk.
@@ -24,7 +24,7 @@ def specific_risk_from_residuals(residuals):
 
 
 def specific_risk(matrix, exposures, window=252, price_factors=None):
-    """Return annualized stock-specific risk after all common factors.
+    """Return annualized idiosyncratic risk after all common factors.
 
     Example:
         specific_risk(matrix, exposures)
@@ -40,10 +40,10 @@ def specific_risk(matrix, exposures, window=252, price_factors=None):
 
 
 def portfolio_specific_risk(portfolio, risks, strict=True):
-    """Return portfolio annualized stock-specific risk.
+    """Return portfolio annualized idiosyncratic risk.
 
     Example:
-        AAPL has 20% specific risk and a 50% weight.
+        AAPL has 20% idiosyncratic risk and a 50% weight.
         Its variance contribution is (0.50 * 0.20) ** 2.
         strict=False skips names without a modeled risk (benchmark weights).
     """
