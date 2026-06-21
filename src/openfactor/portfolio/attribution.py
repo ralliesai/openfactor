@@ -6,15 +6,15 @@ from openfactor.portfolio.report import weights_for
 from openfactor.portfolio.summary import clean_label, family
 
 
-HORIZONS = [("1 Day", 1), ("1 Week", 5)]
+HORIZONS = [("1 Day", 1)]
 
 
 def return_attribution(portfolio, snapshot):
     """Return contribution-to-return rows for the current positioning.
 
     Example:
-        return_attribution(portfolio, snapshot) decomposes 1-day, 1-month, and
-        1-quarter return into common-factor and idiosyncratic contributions.
+        return_attribution(portfolio, snapshot) decomposes the latest 1-day
+        return into common-factor and idiosyncratic contributions.
     """
     panel = getattr(snapshot, "exposures_panel", None)
     if panel is None or panel.empty:
@@ -32,7 +32,7 @@ def attribution_index(portfolio, snapshot):
 
     Example:
         attribution_index(portfolio, snapshot)["factor"]["beta"] is beta's
-        1-day, 1-month, and 1-quarter return contributions.
+        latest 1-day return contribution.
     """
     panel = getattr(snapshot, "exposures_panel", None)
     if panel is None or panel.empty:
@@ -120,7 +120,7 @@ def trailing_sums(series, dates):
     """Return trailing-window sums for each reporting horizon.
 
     Example:
-        trailing_sums(daily, dates) returns 1-day, 1-month, and 1-quarter sums.
+        trailing_sums(daily, dates) returns the latest 1-day sum.
     """
     return [series.reindex(dates[-window:]).sum() for _, window in HORIZONS]
 

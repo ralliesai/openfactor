@@ -36,7 +36,7 @@ The model package loads:
 | `exposures` | Ticker-level factor exposures |
 | `factor_returns` | Recent realized factor returns |
 | `residual_returns` | Recent per-stock residual returns after common factors |
-| `exposures_panel` | Per-date exposure history for return attribution (loaded on demand) |
+| `exposures_panel` | Lagged exposure rows for 1-day return attribution (loaded on demand) |
 | `factor_covariance` | Annualized factor covariance matrix |
 | `specific_risk` | Annualized idiosyncratic residual risk |
 | `metadata` | Universe name, model version, and model metadata |
@@ -123,13 +123,12 @@ decision numbers:
 - **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
 - **Active return attribution** — benchmark return + active return = portfolio
-  return over 1-day (default) / 1-week (toggle with the buttons). The panel has
-  two separate tables: **Active return reconciliation** for style, sector,
-  industry, idiosyncratic return, and total active return; and **Top active return
-  contributors** for ranked factor details with contribution, `% Active`, and
-  `TE Share` side by side. 1-day is your book's actual day; 1-week is badged as
-  a current-weights backtest. Longer real attribution comes from an accumulated
-  `--track` history, not from running today's weights back.
+  return for the latest trading day. The panel has two separate tables:
+  **Active return reconciliation** for style, sector, industry, idiosyncratic
+  return, and total active return; and **Top active return contributors** for
+  ranked factor details with contribution, `% Active`, and `TE Share` side by
+  side. Longer real attribution comes from an accumulated `--track` history,
+  not from running today's weights backward.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
@@ -155,9 +154,8 @@ backfill honestly, run past dates (`--snapshot <date>`) with the holdings you
 Because each day's factor breakdown is stored, the Active return attribution panel gains
 a green **Realized · N d** button that sums those daily contributions over your
 *real* holding path — the honest "what drove the book" over the window. This is
-the opposite of the 1-week view, which runs today's weights backward and is only
-a backtest. The realized view needs no assumption about stable holdings: it is
-exactly the sum of the days you actually recorded.
+not a backtest. The realized view needs no assumption about stable holdings: it
+is exactly the sum of the days you actually recorded.
 
 The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
 in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By

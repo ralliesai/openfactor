@@ -322,6 +322,7 @@ def factor_model_history(
     market_returns=None,
     progress_label=None,
     collect_panel=False,
+    panel_days=None,
 ):
     """Estimate daily factor returns and stock residuals.
 
@@ -330,7 +331,8 @@ def factor_model_history(
         returns factor_return_rows and residual_return_rows.
         market_returns can pin the market factor to SPY instead of estimating
         an intercept from the stock universe.
-        collect_panel=True also returns the per-date exposure panel.
+        collect_panel=True also returns exposure rows; panel_days=1 keeps only
+        the lagged row needed for latest 1-day attribution.
     """
     price_factors = price_factors or default_price_factors()
     reference_factors = reference_factors or default_reference_factors()
@@ -358,7 +360,7 @@ def factor_model_history(
             reference_history,
             reference_factors,
         )
-        if collect_panel:
+        if collect_panel and keep_panel_row(row, len(matrix.returns), panel_days):
             panel_frames.append(daily_exposures.assign(as_of_date=str(matrix.dates[row])))
         x_frame = common_exposure_matrix(
             daily_exposures,
@@ -381,3 +383,10 @@ def factor_model_history(
         panel = pd.concat(panel_frames, ignore_index=True) if panel_frames else pd.DataFrame()
         return factor_returns, residuals, panel
     return factor_returns, residuals
+
+
+def keep_panel_row(row, total_rows, panel_days):
+    """Return whether to retain one exposure-panel day."""
+    if panel_days is None:
+        return True
+    return row >= total_rows - int(panel_days)

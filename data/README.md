@@ -22,7 +22,8 @@ The scheduled job:
    short-interest inputs.
 3. Computes factor exposures.
 4. Estimates factor returns and covariance, pinning the market factor to SPY
-   when public index returns are available.
+   when public index returns are available. The public exposure panel keeps only
+   the lagged row needed for latest 1-day attribution.
 5. Estimates idiosyncratic residual risk.
 6. Publishes the public model files.
 

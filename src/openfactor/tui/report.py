@@ -16,8 +16,8 @@ from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition
 
 
-HORIZONS = ["1 Day", "1 Week"]
-WINDOWS = [1, 5]
+HORIZONS = ["1 Day"]
+WINDOWS = [1]
 
 
 def tui_report(portfolio, snapshot):

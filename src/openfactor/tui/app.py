@@ -319,10 +319,8 @@ class OpenFactorTUI(App):
         h = self.horizon
         r = self.report
         recon, factors, tail = self.return_rows(h)
-        badge = ("[green]your book's actual day[/]" if h == 0
-                 else "[yellow]current-weights backtest — assumes you held today's book the whole window[/]")
         self.query_one("#returns_summary", Static).update(
-            f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   {badge}\n"
+            f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   [green]your book's actual day[/]\n"
             f"{r['meta']['benchmark']['name']} return {signed(r['benchmark_ret'][h])}"
             f"  +  Active return {signed(r['active_ret'][h])}"
             f"   =   Portfolio {signed(r['portfolio_ret'][h])}\n"
@@ -525,8 +523,7 @@ class OpenFactorTUI(App):
             "stock-picking skill.",
             "[6] Active return contribution is lagged exposure times realized factor return. % Active can exceed "
             "100% when positive and negative factor effects offset.",
-            "[7] The 1-week attribution uses today's holdings run backward. The Realized button, when present, "
-            "sums the holdings actually stored by --track.",
+            "[7] The Realized button, when present, sums the holdings actually stored by --track.",
         ])
 
     # ---- interaction ----------------------------------------------------

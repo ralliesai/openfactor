@@ -122,10 +122,10 @@ def index_returns_file(returns):
 
 
 def panel_gzip(snapshot):
-    """Return the gzipped exposure-history file, or None when absent.
+    """Return the gzipped lagged-exposure file, or None when absent.
 
     Example:
-        panel_gzip(snapshot) compresses the multi-day exposure panel for upload.
+        panel_gzip(snapshot) compresses the rows needed for 1-day attribution.
     """
     panel = getattr(snapshot, "exposures_panel", None)
     if panel is None or panel.empty:

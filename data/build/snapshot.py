@@ -193,6 +193,7 @@ class DatasetBuilder:
             market_returns=benchmark_market,
             progress_label="factor returns",
             collect_panel=True,
+            panel_days=1,
         )
         exposures_panel = exposure_panel(panel, exposures)
         LOGGER.info(
