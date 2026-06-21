@@ -85,19 +85,19 @@ that works in **active (tracking-error) space** against the cap-weighted univers
 benchmark and leads with the decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
-  beta to the benchmark, and the specific-risk share of tracking error.
+  beta to the benchmark, and the idiosyncratic share of tracking error.
 - **Portfolio risk** — the current absolute risk decomposition: common factor,
-  market, style, sector, industry, specific, and total risk.
+  market, style, sector, industry, idiosyncratic, and total risk.
 - **Active risk** — every factor's active exposure and its **% of the
   tracking-error budget**, sorted, with annualized contribution-to-tracking-error
   shown next to the share. Diversifying factors (those that *reduce* tracking
   error through covariance) are shown in green.
-- **Specific risk by name** — which holdings drive stock-specific risk,
+- **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
 - **Active return attribution** — benchmark return + active return = portfolio
   return over 1-day (default) / 1-week (toggle with the buttons). The panel has
   two separate tables: **Active return reconciliation** for style, sector,
-  industry, specific return, and total active return; and **Top active return
+  industry, idiosyncratic return, and total active return; and **Top active return
   contributors** for ranked factor details with contribution, `% Active`, and
   `TE Share` side by side. 1-day is your book's actual day; 1-week is badged as
   a current-weights backtest. Longer real attribution comes from an accumulated
@@ -519,16 +519,16 @@ so it ships with the model and needs no index license.
 
 Active exposures are the portfolio's exposures minus the benchmark's
 (`active = portfolio − benchmark`), and the same factor covariance and
-specific risk produce active factor risk, active specific risk, and total
+idiosyncratic risk produce active factor risk, active idiosyncratic risk, and total
 **tracking error**. Because style exposures are cap-weighted standardized,
 the benchmark sits near zero on every style factor: active style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
 carry the real benchmark-relative bets.
 
 Return attribution uses the same model factors: lagged exposures times realized
-factor returns, plus specific returns. The headline shows benchmark return plus
+factor returns, plus idiosyncratic returns. The headline shows benchmark return plus
 active return equals portfolio return; the table below reconciles active return
-through style, sector, industry, and specific contribution rows. `% Active` is
+through style, sector, industry, and idiosyncratic contribution rows. `% Active` is
 contribution divided by active return, so it can exceed 100% when positive and
 negative drivers offset. `TE Share` is the same factor's contribution to
 tracking error from the ex-ante risk model.

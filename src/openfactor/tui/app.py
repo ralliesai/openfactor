@@ -93,8 +93,7 @@ def ratio_cell(value, bold=False):
 
 def label_cell(row):
     """Return a table label styled by row type."""
-    label = "Specific" if row["label"] == "Idiosyncratic" else str(row["label"])
-    text = Text(label)
+    text = Text(str(row["label"]))
     if row["kind"] in ("section", "total"):
         text.stylize("bold")
     elif row["kind"] == "group":
@@ -158,7 +157,7 @@ class OpenFactorTUI(App):
                         with Collapsible(title=f"{tail} smaller factors", collapsed=True):
                             yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
                         yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
-                    with Collapsible(title="Specific risk — stock-level residuals", collapsed=False):
+                    with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
                         yield Static(self.specific_summary(), classes="legend")
                         yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
                 with Vertical(classes="col"):
@@ -214,7 +213,7 @@ class OpenFactorTUI(App):
             card("Tracking error", pct1(s["tracking_error"]), "active risk vs benchmark"),
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
             card("Ex-ante beta", beta_value(s["predicted_beta"]), self.beta_card_sub()),
-            card("Specific risk", pct1(s["specific_share_te"]), "of tracking error"),
+            card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
             card("Info ratio", *self.ir_card()),
         ]
 
@@ -284,7 +283,7 @@ class OpenFactorTUI(App):
             )
         if specific:
             table.add_row(
-                Text("Specific risk", style="bold"),
+                Text("Idiosyncratic risk", style="bold"),
                 "",
                 "",
                 "",
@@ -294,7 +293,7 @@ class OpenFactorTUI(App):
 
     def populate_specific(self):
         table = self.query_one("#specific", DataTable)
-        table.add_columns("Ticker", "Weight", "Specific vol", "Share of specific")
+        table.add_columns("Ticker", "Weight", "Idiosyncratic vol", "Share of idiosyncratic")
         for name in self.report["names"]["names"]:
             table.add_row(
                 name["ticker"], pct1(name["weight"]),
@@ -344,19 +343,27 @@ class OpenFactorTUI(App):
         factors.sort(key=lambda row: -magnitude(row["ret"][horizon]))
         top = []
         for row in factors[:TOP_N]:
-            top.append(return_row(
-                row["label"],
-                row["family"],
-                row["ret"][horizon],
-                share_of(row["ret"][horizon], active),
-                row["te_share"],
-                "factor",
-            ))
+            top.append(
+                return_row(
+                    row["label"],
+                    row["family"],
+                    row["ret"][horizon],
+                    share_of(row["ret"][horizon], active),
+                    row["te_share"],
+                    "factor",
+                )
+            )
 
         recon += [
-            return_row("Specific return", "Specific", r["specific_ret"][horizon],
-                       share_of(r["specific_ret"][horizon], active), r["specific_te_share"], "section"),
-            return_row("Active return", "Total", active, None if missing(active) else 1.0, None, "total"),
+            return_row(
+                "Idiosyncratic return",
+                "Idiosyncratic",
+                r["specific_ret"][horizon],
+                share_of(r["specific_ret"][horizon], active),
+                r["specific_te_share"],
+                "section",
+            ),
+            return_row("Active return", "Total", active, share_of(active, active), None, "total"),
         ]
         return recon, top, max(0, len(factors) - TOP_N)
 
@@ -418,11 +425,26 @@ class OpenFactorTUI(App):
         for factor, value in items[:TOP_N]:
             label, fam = lookup.get(factor, (factor, "—"))
             te = next((row["te_share"] for row in r["active_rows"] if row["factor"] == factor), None)
-            factors.append(return_row(label, fam, value, share_of(value, real["active"]), te, "factor"))
+            factors.append(
+                return_row(label, fam, value, share_of(value, real["active"]), te, "factor")
+            )
         recon += [
-            return_row("Specific return", "Specific", real["specific"],
-                       share_of(real["specific"], real["active"]), r["specific_te_share"], "section"),
-            return_row("Active return", "Total", real["active"], None if missing(real["active"]) else 1.0, None, "total"),
+            return_row(
+                "Idiosyncratic return",
+                "Idiosyncratic",
+                real["specific"],
+                share_of(real["specific"], real["active"]),
+                r["specific_te_share"],
+                "section",
+            ),
+            return_row(
+                "Active return",
+                "Total",
+                real["active"],
+                share_of(real["active"], real["active"]),
+                None,
+                "total",
+            ),
         ]
         self.fill_return_recon(self.query_one("#returns_recon", DataTable), recon)
         self.fill_return_factors(self.query_one("#returns_factors", DataTable), factors)
@@ -440,7 +462,7 @@ class OpenFactorTUI(App):
         n = self.report["names"]
         eff = "—" if n["effective_names"] is None else f"{n['effective_names']:.1f}"
         top = n["names"][0]["ticker"] if n["names"] else "—"
-        return (f"Specific risk {pct1(n['total_specific'])} of the book · top name "
+        return (f"Idiosyncratic risk {pct1(n['total_specific'])} of the book · top name "
                 f"[b]{top}[/] = {pct1(n['top_share'])} · effective names {eff}")
 
     def tail_text(self):
@@ -482,7 +504,7 @@ class OpenFactorTUI(App):
             "[3] Tracking error is active risk: portfolio minus the cap-weighted model benchmark.",
             "[4] TE contribution is variance contribution divided by total tracking error; negative values "
             "are diversifiers in the current covariance matrix.",
-            "[5] Specific risk is stock-level residual risk after common factors. It is not automatically "
+            "[5] Idiosyncratic risk is stock-level residual risk after common factors. It is not automatically "
             "stock-picking skill.",
             "[6] Active return contribution is lagged exposure times realized factor return. % Active can exceed "
             "100% when positive and negative factor effects offset.",
