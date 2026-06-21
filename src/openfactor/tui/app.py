@@ -9,6 +9,8 @@ from openfactor.llm.report_chat import ReportChat
 
 
 TOP_N = 8
+CHAT_PLACEHOLDER = "Ask about beta, TE, attribution..."
+CHAT_WAITING_FRAMES = ("Thinking", "Thinking.", "Thinking..", "Thinking...")
 
 
 def missing(value):
@@ -160,6 +162,8 @@ class OpenFactorApp(App):
         self.chat = ReportChat.from_env(report, snapshot=snapshot)
         self.chat_history = []
         self.chat_transcript = ""
+        self.chat_wait_timer = None
+        self.chat_wait_frame = 0
 
     def compose(self) -> ComposeResult:
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
@@ -207,7 +211,7 @@ class OpenFactorApp(App):
                 with Vertical(id="chat_sidebar"):
                     yield Static("[b]Ask OpenFactor[/]\n[dim]Questions use this report.[/]", id="chat_title")
                     yield Markdown("", id="chat_log", open_links=False)
-                    yield Input(placeholder="Ask about beta, TE, attribution...", id="chat_input")
+                    yield Input(placeholder=CHAT_PLACEHOLDER, id="chat_input")
         yield Footer()
 
     async def on_mount(self):
@@ -614,6 +618,7 @@ class OpenFactorApp(App):
         if not question:
             return
         event.input.disabled = True
+        self.start_chat_waiting(event.input)
         await self.append_chat("You", question)
         try:
             answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history)
@@ -624,14 +629,32 @@ class OpenFactorApp(App):
             self.chat_history.append({"role": "assistant", "content": answer})
             await self.append_chat("OpenFactor", answer)
         finally:
-            event.input.disabled = False
-            event.input.focus()
+            self.stop_chat_waiting(event.input)
 
     async def append_chat(self, author, body):
         log = self.query_one("#chat_log", Markdown)
         self.chat_transcript = f"{self.chat_transcript}{chat_fragment(author, body)}"
         await log.update(self.chat_transcript)
         log.scroll_end(animate=False)
+
+    def start_chat_waiting(self, chat_input):
+        if self.chat_wait_timer is not None:
+            self.chat_wait_timer.stop()
+        self.chat_wait_frame = 0
+        self.update_chat_waiting(chat_input)
+        self.chat_wait_timer = self.set_interval(0.35, lambda: self.update_chat_waiting(chat_input))
+
+    def update_chat_waiting(self, chat_input):
+        chat_input.placeholder = CHAT_WAITING_FRAMES[self.chat_wait_frame % len(CHAT_WAITING_FRAMES)]
+        self.chat_wait_frame += 1
+
+    def stop_chat_waiting(self, chat_input):
+        if self.chat_wait_timer is not None:
+            self.chat_wait_timer.stop()
+            self.chat_wait_timer = None
+        chat_input.placeholder = CHAT_PLACEHOLDER
+        chat_input.disabled = False
+        chat_input.focus()
 
     def action_expand_all(self):
         for widget in self.query(Collapsible):
