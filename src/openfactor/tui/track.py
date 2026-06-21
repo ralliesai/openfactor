@@ -6,8 +6,9 @@ import pandas as pd
 
 TRADING_DAYS = 252
 FIELDS = ["date", "holdings", "portfolio_return", "benchmark_return", "active_return",
-          "tracking_error", "beta", "predicted_beta", "total_risk", "idio_share_te",
-          "factor_contrib", "specific_contrib"]
+          "tracking_error", "beta", "predicted_beta", "total_risk",
+          "idiosyncratic_share_of_tracking_error", "factor_contrib",
+          "idiosyncratic_contribution"]
 
 
 def record_for(report):
@@ -19,7 +20,7 @@ def record_for(report):
         per-factor return breakdown, so a real holding path can be summed later.
     """
     summary, meta = report["summary"], report["meta"]
-    today = report.get("today") or {"factor": {}, "specific": None}
+    today = report.get("today") or {"factor": {}, "idiosyncratic": None}
     return {
         "date": meta["as_of_date"],
         "holdings": ";".join(f"{h['ticker']}:{h['weight']:.4f}" for h in meta["holdings"]),
@@ -30,9 +31,9 @@ def record_for(report):
         "beta": summary["beta"],
         "predicted_beta": summary["predicted_beta"],
         "total_risk": summary["total_risk"],
-        "idio_share_te": summary["specific_share_te"],
+        "idiosyncratic_share_of_tracking_error": summary["idiosyncratic_share_of_tracking_error"],
         "factor_contrib": ";".join(f"{f}:{v:.6f}" for f, v in today["factor"].items()),
-        "specific_contrib": today["specific"],
+        "idiosyncratic_contribution": today["idiosyncratic"],
     }
 
 
@@ -128,13 +129,13 @@ def realized_attribution(frame):
     for text in rows["factor_contrib"]:
         for name, value in parse_contrib(text).items():
             factor[name] = factor.get(name, 0.0) + value
-    specific = float(pd.to_numeric(rows["specific_contrib"], errors="coerce").fillna(0.0).sum())
+    idiosyncratic = float(pd.to_numeric(rows["idiosyncratic_contribution"], errors="coerce").fillna(0.0).sum())
     factor.pop("market", None)
     benchmark = realized_sum(rows, "benchmark_return")
     portfolio = realized_sum(rows, "portfolio_return")
     active = realized_sum(rows, "active_return")
     if active is None:
-        active = sum(factor.values()) + specific
+        active = sum(factor.values()) + idiosyncratic
     if benchmark is None:
         benchmark = portfolio - active if portfolio is not None and active is not None else None
     if portfolio is None and benchmark is not None and active is not None:
@@ -144,7 +145,7 @@ def realized_attribution(frame):
         "days": int(len(rows)),
         "date_range": dates[-1] if len(dates) == 1 else f"{dates[0]} → {dates[-1]}",
         "factor": factor,
-        "specific": specific,
+        "idiosyncratic": idiosyncratic,
         "benchmark": benchmark,
         "active": active,
         "portfolio": portfolio,

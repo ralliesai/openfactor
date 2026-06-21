@@ -12,10 +12,10 @@ from openfactor.model.risk import (
     portfolio_risk_report,
     risk_explanation_report,
 )
-from openfactor.model.specific_risk import (
-    portfolio_specific_risk,
-    specific_risk,
-    specific_risk_from_residuals,
+from openfactor.model.idiosyncratic_risk import (
+    idiosyncratic_risk,
+    idiosyncratic_risk_from_residuals,
+    portfolio_idiosyncratic_risk,
 )
 
 __all__ = [
@@ -28,9 +28,9 @@ __all__ = [
     "factor_covariance",
     "factor_risk_report",
     "portfolio_factor_exposure",
-    "portfolio_specific_risk",
+    "portfolio_idiosyncratic_risk",
     "portfolio_risk_report",
     "risk_explanation_report",
-    "specific_risk",
-    "specific_risk_from_residuals",
+    "idiosyncratic_risk",
+    "idiosyncratic_risk_from_residuals",
 ]

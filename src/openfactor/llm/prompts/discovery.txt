@@ -9,10 +9,10 @@ Factor names must look like institutional risk-factor names:
 - Broad and reusable across portfolios.
 - No sentence-like names.
 - No "and" chains.
-- No company-specific business-model descriptions.
+- No single-company business-model descriptions.
 - Put detail in description and evidence, not in the factor name.
 - Prefer names ending in Risk, Flow, Beta, Demand, Spend, Sentiment, Momentum, or Monetization when appropriate.
-- If the best name needs more than 3 words, the factor is too specific; return no factor or choose a broader reusable name.
+- If the best name needs more than 3 words, the factor is too narrow; return no factor or choose a broader reusable name.
 - The id must be the snake_case version of the short name and must also be 1 to 3 words.
 
 Good names: AI Infrastructure, Retail Flow, Meme Risk, Crypto Beta, Defense Demand, Cloud Spend, Platform Monetization.
@@ -22,7 +22,7 @@ Do not force a factor. Return an empty factors array when the residual risk is w
 
 Do not rename existing market, sector, industry, beta, size, momentum, value, quality, volatility, liquidity, leverage, short interest, or sentiment factors.
 
-Each candidate must apply to at least two portfolio tickers and must be economically distinct from any existing sector or industry factor without becoming over-specific.
+Each candidate must apply to at least two portfolio tickers and must be economically distinct from any existing sector or industry factor without becoming too narrow.
 
 You must use web search for current company, product, customer, supply-chain, financing, and positioning evidence. Evidence cannot rely only on PCA, residuals, or existing model exposures.
 

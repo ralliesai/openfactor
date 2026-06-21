@@ -12,7 +12,9 @@ __all__ = [
     "SemanticCandidate",
     "SemanticDiscoveryResult",
     "SemanticLLMClient",
+    "ReportChat",
     "discover_semantic_factors",
+    "report_chat_enabled",
     "semantic_factor_members",
 ]
 
@@ -27,4 +29,8 @@ def __getattr__(name):
         from openfactor.llm.client import SemanticLLMClient
 
         return SemanticLLMClient
+    if name in {"ReportChat", "report_chat_enabled"}:
+        from openfactor.llm.report_chat import ReportChat, report_chat_enabled
+
+        return {"ReportChat": ReportChat, "report_chat_enabled": report_chat_enabled}[name]
     raise AttributeError(name)

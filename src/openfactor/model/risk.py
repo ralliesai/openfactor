@@ -3,7 +3,7 @@ import pandas as pd
 
 from openfactor.core.checks import require_columns
 from openfactor.model.exposures import model_exposure_matrix
-from openfactor.model.specific_risk import portfolio_specific_risk
+from openfactor.model.idiosyncratic_risk import portfolio_idiosyncratic_risk
 
 
 def factor_covariance(factor_returns):
@@ -117,7 +117,7 @@ def missing_model_exposures(exposures, covariance):
     return sorted(modeled - available)
 
 
-def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True):
+def portfolio_risk_report(factor_report, idiosyncratic_risks, portfolio, strict=True):
     """Return total, factor, and idiosyncratic portfolio risk.
 
     Example:
@@ -125,17 +125,17 @@ def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True)
         strict=False skips unmodeled names (benchmark-relative tracking error).
     """
     factor_variance = factor_report["variance_contribution"].sum()
-    specific = portfolio_specific_risk(portfolio, specific_risks, strict)
-    total = np.sqrt(max(factor_variance, 0.0) + specific**2)
+    idiosyncratic = portfolio_idiosyncratic_risk(portfolio, idiosyncratic_risks, strict)
+    total = np.sqrt(max(factor_variance, 0.0) + idiosyncratic**2)
     rows = [
         ("factor", np.sqrt(max(factor_variance, 0.0))),
-        ("idiosyncratic", specific),
+        ("idiosyncratic", idiosyncratic),
         ("total", total),
     ]
     return pd.DataFrame(rows, columns=["component", "risk"]).set_index("component")
 
 
-def risk_explanation_report(factor_report, specific_risks, portfolio):
+def risk_explanation_report(factor_report, idiosyncratic_risks, portfolio):
     """Return factor versus residual risk as variance percentages.
 
     Example:
@@ -143,8 +143,8 @@ def risk_explanation_report(factor_report, specific_risks, portfolio):
         residual_unexplained_percent is 40.
     """
     factor_variance = max(factor_report["variance_contribution"].sum(), 0.0)
-    specific = portfolio_specific_risk(portfolio, specific_risks)
-    residual_variance = specific**2
+    idiosyncratic = portfolio_idiosyncratic_risk(portfolio, idiosyncratic_risks)
+    residual_variance = idiosyncratic**2
     total = factor_variance + residual_variance
     if total == 0:
         total = np.nan

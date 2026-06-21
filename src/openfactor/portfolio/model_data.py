@@ -145,7 +145,7 @@ def factor_model_data(snapshot, tickers=None, strict=True):
     benchmark = benchmark_weights(snapshot.exposures)
     tickers = ticker_index(tickers, benchmark.index)
     exposures = aligned_exposures(snapshot.exposures, covariance.index, tickers, strict)
-    idiosyncratic = aligned_idiosyncratic_variance(snapshot.specific_risk, tickers, strict)
+    idiosyncratic = aligned_idiosyncratic_variance(snapshot.idiosyncratic_risk, tickers, strict)
     benchmark = benchmark.reindex(tickers).fillna(0.0)
     covariance = covariance.reindex(index=exposures.columns, columns=exposures.columns)
     groups = factor_groups(snapshot.exposures, exposures.columns)
@@ -194,10 +194,10 @@ def aligned_exposures(exposures, factors, tickers, strict):
     return matrix.reindex(tickers).reindex(columns=factors).fillna(0.0)
 
 
-def aligned_idiosyncratic_variance(specific_risk, tickers, strict):
+def aligned_idiosyncratic_variance(idiosyncratic_risk, tickers, strict):
     """Return idiosyncratic variance aligned to tickers."""
-    require_columns(specific_risk, ["ticker", "specific_risk"])
-    risks = specific_risk.drop_duplicates("ticker").set_index("ticker")["specific_risk"]
+    require_columns(idiosyncratic_risk, ["ticker", "idiosyncratic_risk"])
+    risks = idiosyncratic_risk.drop_duplicates("ticker").set_index("ticker")["idiosyncratic_risk"]
     risks.index = risks.index.astype(str)
     risks = pd.to_numeric(risks, errors="coerce").reindex(tickers)
     missing = list(risks[risks.isna()].index)

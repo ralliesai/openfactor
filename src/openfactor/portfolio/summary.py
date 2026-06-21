@@ -1,11 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from openfactor.model.risk import (
-    active_holdings,
-    factor_risk_report_from_covariance,
-    portfolio_specific_risk,
-)
+from openfactor.model.idiosyncratic_risk import portfolio_idiosyncratic_risk
+from openfactor.model.risk import active_holdings, factor_risk_report_from_covariance
 from openfactor.portfolio.report import display_factor_name
 
 
@@ -26,17 +23,17 @@ def risk_decomposition(portfolio, snapshot):
     groups = exposures.drop_duplicates("factor").set_index("factor")["group"].to_dict()
 
     factor_var = float(fr["variance_contribution"].sum())
-    specific = portfolio_specific_risk(portfolio, snapshot.specific_risk)
-    specific_var = 0.0 if pd.isna(specific) else float(specific) ** 2
-    total_var = (factor_var + specific_var) or np.nan
+    idiosyncratic = portfolio_idiosyncratic_risk(portfolio, snapshot.idiosyncratic_risk)
+    idiosyncratic_var = 0.0 if pd.isna(idiosyncratic) else float(idiosyncratic) ** 2
+    total_var = (factor_var + idiosyncratic_var) or np.nan
 
     fr = fr.assign(
         active=ar["exposure"].reindex(fr.index).fillna(0.0),
         family=[family(factor, groups) for factor in fr.index],
         pct=fr["variance_contribution"] / total_var,
     )
-    summary = risk_summary(factor_var, specific, ar, active, snapshot)
-    return decomposition_rows(fr, summary, factor_var / total_var, specific_var / total_var)
+    summary = risk_summary(factor_var, idiosyncratic, ar, active, snapshot)
+    return decomposition_rows(fr, summary, factor_var / total_var, idiosyncratic_var / total_var)
 
 
 def family(factor, groups):
@@ -60,7 +57,7 @@ def clean_label(factor):
     return name.split(": ", 1)[1] if name.startswith(("Sector: ", "Industry: ")) else name
 
 
-def decomposition_rows(fr, summary, common_share, specific_share):
+def decomposition_rows(fr, summary, common_share, idiosyncratic_share):
     """Return nested decomposition rows with summary risks embedded.
 
     Example:
@@ -76,7 +73,15 @@ def decomposition_rows(fr, summary, common_share, specific_share):
         rows.append(node(f"  {name}", "group", pct=float(sub["pct"].sum())))
         for factor, row in sub.sort_values("pct", ascending=False).iterrows():
             rows.append(leaf(row, "    ", clean_label(factor), factor))
-    rows.append(risk_row("Idiosyncratic", "section", summary["specific"], summary["active_specific"], specific_share))
+    rows.append(
+        risk_row(
+            "Idiosyncratic",
+            "section",
+            summary["idiosyncratic"],
+            summary["active_idiosyncratic"],
+            idiosyncratic_share,
+        )
+    )
     rows.append(risk_row("Total", "total", summary["total"], summary["tracking_error"], 1.0))
     return rows
 
@@ -132,22 +137,22 @@ def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.
             "volatility": volatility, "pct": pct, "family": family, "key": key}
 
 
-def risk_summary(factor_var, specific, ar, active, snapshot):
+def risk_summary(factor_var, idiosyncratic, ar, active, snapshot):
     """Return standalone portfolio and active (tracking-error) risks.
 
     Example:
         total, common-factor, idiosyncratic, and tracking-error volatilities.
     """
     active_factor = np.sqrt(max(float(ar["variance_contribution"].sum()), 0.0))
-    active_specific = portfolio_specific_risk(active, snapshot.specific_risk, strict=False)
+    active_idiosyncratic = portfolio_idiosyncratic_risk(active, snapshot.idiosyncratic_risk, strict=False)
     common = np.sqrt(max(factor_var, 0.0))
-    spec = 0.0 if pd.isna(specific) else float(specific)
-    a_spec = 0.0 if pd.isna(active_specific) else float(active_specific)
+    idio = 0.0 if pd.isna(idiosyncratic) else float(idiosyncratic)
+    active_idio = 0.0 if pd.isna(active_idiosyncratic) else float(active_idiosyncratic)
     return {
-        "total": float(np.sqrt(common**2 + spec**2)),
+        "total": float(np.sqrt(common**2 + idio**2)),
         "common_factor": common,
-        "specific": specific,
-        "tracking_error": float(np.sqrt(active_factor**2 + a_spec**2)),
+        "idiosyncratic": idiosyncratic,
+        "tracking_error": float(np.sqrt(active_factor**2 + active_idio**2)),
         "active_factor": active_factor,
-        "active_specific": active_specific,
+        "active_idiosyncratic": active_idiosyncratic,
     }

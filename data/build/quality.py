@@ -23,7 +23,7 @@ def validate_snapshot(snapshot):
     """
     require_columns(snapshot.universe, ["ticker"], "universe")
     require_columns(snapshot.exposures, ["ticker", "factor", "value"], "exposures")
-    require_columns(snapshot.specific_risk, ["ticker", "specific_risk"], "specific_risk")
+    require_columns(snapshot.idiosyncratic_risk, ["ticker", "idiosyncratic_risk"], "idiosyncratic_risk")
 
     if snapshot.universe.empty:
         raise ValueError("universe is empty")
@@ -31,8 +31,8 @@ def validate_snapshot(snapshot):
         raise ValueError("universe has duplicate tickers")
     if snapshot.exposures.duplicated(["ticker", "factor"]).any():
         raise ValueError("exposures has duplicate ticker/factor rows")
-    if snapshot.specific_risk["ticker"].duplicated().any():
-        raise ValueError("specific_risk has duplicate tickers")
+    if snapshot.idiosyncratic_risk["ticker"].duplicated().any():
+        raise ValueError("idiosyncratic_risk has duplicate tickers")
 
     factors = set(snapshot.factor_returns.columns)
     covariance = snapshot.factor_covariance

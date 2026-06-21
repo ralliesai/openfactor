@@ -30,7 +30,7 @@ PUBLIC_FILES = [
     "factor_returns.csv",
     "residual_returns.csv",
     "factor_covariance.csv",
-    "specific_risk.csv",
+    "idiosyncratic_risk.csv",
     "universe.csv",
     "indexes.csv",
     "index_prices.csv",

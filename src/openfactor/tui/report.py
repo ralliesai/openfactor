@@ -10,7 +10,7 @@ from openfactor.io.indexes import (
 from openfactor.portfolio.active_risk import (
     active_risk_report,
     benchmark_profile,
-    specific_by_name,
+    idiosyncratic_by_name,
     tail_metrics,
 )
 from openfactor.portfolio.attribution import attribution_index
@@ -32,20 +32,20 @@ def tui_report(portfolio, snapshot):
     rows = risk_decomposition(portfolio, snapshot)
     total = find(rows, "Total")
     common = find(rows, "Common Factor")
-    specific = find(rows, "Idiosyncratic")
+    idiosyncratic = find(rows, "Idiosyncratic")
     active = active_risk_report(portfolio, snapshot)
     index = attribution_index(portfolio, snapshot)
     attach_returns(active["rows"], index)
-    names = specific_by_name(portfolio, snapshot)
+    idiosyncratic_names = idiosyncratic_by_name(portfolio, snapshot)
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
     blank = [None] * len(HORIZONS)
     portfolio_ret = index["total"] if index else blank
     dates = return_dates(snapshot)
     benchmark_ret, benchmark_kind = benchmark_returns(snapshot, dates)
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
-    specific_ret = benchmark_relative_specific(index, active_ret)
+    idiosyncratic_ret = benchmark_relative_idiosyncratic(index, active_ret)
     report = {
-        "today": today_contributions(index, specific_ret),
+        "today": today_contributions(index, idiosyncratic_ret),
         "meta": meta(portfolio, snapshot, benchmark_context(snapshot, benchmark_kind)),
         "risk_rows": rows,
         "summary": {
@@ -53,29 +53,29 @@ def tui_report(portfolio, snapshot):
             "tracking_error": active["tracking_error"],
             "tracking_error_label": tracking_error_label(benchmark_kind),
             "factor_share": common["pct"],
-            "specific_share_total": specific["pct"],
-            "specific_share_te": active["specific_share"],
-            "specific_te_contribution": active["specific_contribution"],
+            "idiosyncratic_share_of_total_variance": idiosyncratic["pct"],
+            "idiosyncratic_share_of_tracking_error": active["idiosyncratic_share"],
+            "idiosyncratic_te_contribution": active["idiosyncratic_contribution"],
             "predicted_beta": tail["beta"],
             "beta": tail["beta"],
             "var": tail["var"],
             "return": dict(zip(HORIZONS, portfolio_ret)),
         },
         "active_rows": active["rows"],
-        "specific_te_share": active["specific_share"],
-        "specific_te_contribution": active["specific_contribution"],
-        "specific_ret": specific_ret,
+        "idiosyncratic_te_share": active["idiosyncratic_share"],
+        "idiosyncratic_te_contribution": active["idiosyncratic_contribution"],
+        "idiosyncratic_return": idiosyncratic_ret,
         "family_ret": index["family"] if index else {},
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
         "active_ret": active_ret,
-        "specific_return_names": idiosyncratic_return_by_name(
+        "idiosyncratic_return_by_name": idiosyncratic_return_by_name(
             portfolio,
             snapshot,
             index,
             benchmark_ret,
         ),
-        "names": names,
+        "idiosyncratic_risk_by_name": idiosyncratic_names,
         "horizons": HORIZONS,
         "horizon_dates": horizon_labels(dates),
         "track": None,
@@ -84,7 +84,7 @@ def tui_report(portfolio, snapshot):
     return report
 
 
-def today_contributions(index, specific_ret):
+def today_contributions(index, idiosyncratic_ret):
     """Return this snapshot's realized 1-day contribution per factor and idiosyncratic return.
 
     Example:
@@ -92,14 +92,14 @@ def today_contributions(index, specific_ret):
         of running today's weights backward.
     """
     if not index:
-        return {"factor": {}, "specific": 0.0}
+        return {"factor": {}, "idiosyncratic": 0.0}
     return {
         "factor": {
             factor: num(values[0])
             for factor, values in index["factor"].items()
             if factor != "market"
         },
-        "specific": num(specific_ret[0] if specific_ret else None),
+        "idiosyncratic": num(idiosyncratic_ret[0] if idiosyncratic_ret else None),
     }
 
 
@@ -144,7 +144,7 @@ def benchmark_returns(snapshot, dates):
     return [None] * len(WINDOWS), "missing"
 
 
-def benchmark_relative_specific(index, active_ret):
+def benchmark_relative_idiosyncratic(index, active_ret):
     """Return the benchmark-relative residual needed to reconcile active return.
 
     Example:
@@ -154,7 +154,7 @@ def benchmark_relative_specific(index, active_ret):
     blank = [None] * len(HORIZONS)
     if not index:
         return blank
-    raw = index["specific"]
+    raw = index["idiosyncratic"]
     values = []
     for i, active in enumerate(active_ret):
         if active is None:

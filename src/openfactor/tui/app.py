@@ -1,7 +1,12 @@
+import asyncio
+
+from rich.markup import escape
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Static
+from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Input, RichLog, Static
+
+from openfactor.llm.report_chat import ReportChat
 
 
 TOP_N = 8
@@ -91,7 +96,7 @@ def ratio_cell(value, bold=False):
     return text
 
 
-def idio_share_cell(value, contribution):
+def idiosyncratic_share_cell(value, contribution):
     """Return a name-residual share colored by contribution direction."""
     if missing(value):
         return Text("—", style="dim")
@@ -124,8 +129,14 @@ class OpenFactorTUI(App):
     #cards { height: auto; padding: 1 0; }
     .card { width: 1fr; height: 5; border: round $primary 40%; padding: 0 1; margin: 0 1 0 0; }
     .legend { color: $text-muted; padding: 0 1; }
+    #main { height: 1fr; }
+    #report_scroll { width: 1fr; height: 1fr; }
     #columns { height: auto; }
     .col { width: 1fr; height: auto; }
+    #chat_sidebar { width: 52; height: 1fr; padding: 0 1 0 0; }
+    #chat_title { height: auto; padding: 0 0 1 0; }
+    #chat_log { height: 1fr; }
+    #chat_input { height: 3; }
     Collapsible { margin: 0 1 1 0; }
     DataTable { height: auto; margin: 0 1; }
     #horizons { height: auto; padding: 0 1 1 1; }
@@ -142,55 +153,65 @@ class OpenFactorTUI(App):
         super().__init__()
         self.report = report
         self.horizon = 0  # default to 1 Day — your book's actual return
+        self.chat = ReportChat.from_env(report)
+        self.chat_history = []
 
     def compose(self) -> ComposeResult:
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
         tail = max(0, len(active) - TOP_N)
         _, risk_tail = self.risk_row_sets()
         yield Header(show_clock=False)
-        with VerticalScroll():
-            yield Static(self.header_line(), classes="subtitle")
-            yield Horizontal(*self.cards(), id="cards")
-            with Horizontal(id="columns"):
-                with Vertical(classes="col"):
-                    with Collapsible(title="Portfolio risk — current snapshot", collapsed=False):
-                        yield Static(self.risk_summary(), classes="legend")
-                        yield DataTable(id="risk", cursor_type="none", zebra_stripes=True)
-                        if risk_tail:
-                            with Collapsible(title=f"{len(risk_tail)} smaller risk drivers", collapsed=True):
-                                yield DataTable(id="risk_tail", cursor_type="none", zebra_stripes=True)
-                    with Collapsible(title="Active risk — tracking-error drivers", collapsed=False):
-                        yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
-                        with Collapsible(title=f"{tail} smaller factors", collapsed=True):
-                            yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
-                        yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
-                    with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
-                        yield Static(self.specific_summary(), classes="legend")
-                        yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
-                with Vertical(classes="col"):
-                    with Collapsible(title="Active return attribution", collapsed=False):
-                        yield Horizontal(*self.horizon_buttons(), id="horizons")
-                        yield Static(id="returns_summary", classes="legend")
-                        yield Static("[b]Active return reconciliation[/]", classes="legend")
-                        yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
-                        yield Static("[b]Top active return contributors[/]", classes="legend")
-                        yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
-                    with Collapsible(title="Idiosyncratic return — name drivers", collapsed=False):
-                        yield DataTable(id="specific_returns", cursor_type="none", zebra_stripes=True)
-                    with Collapsible(title="Benchmark", collapsed=True):
-                        yield Static(self.benchmark_text(), classes="legend")
-                    with Collapsible(title="Parametric loss & beta", collapsed=True):
-                        yield Static(self.tail_text(), classes="legend")
-                    with Collapsible(title="Footnotes", collapsed=True):
-                        yield Static(self.footnotes_text(), classes="legend")
+        yield Static(self.header_line(), classes="subtitle")
+        yield Horizontal(*self.cards(), id="cards")
+        with Horizontal(id="main"):
+            with VerticalScroll(id="report_scroll"):
+                with Horizontal(id="columns"):
+                    with Vertical(classes="col"):
+                        with Collapsible(title="Portfolio risk — current report", collapsed=False):
+                            yield Static(self.risk_summary(), classes="legend")
+                            yield DataTable(id="risk", cursor_type="none", zebra_stripes=True)
+                            if risk_tail:
+                                with Collapsible(title=f"{len(risk_tail)} smaller risk drivers", collapsed=True):
+                                    yield DataTable(id="risk_tail", cursor_type="none", zebra_stripes=True)
+                        with Collapsible(title="Active risk — tracking-error drivers", collapsed=False):
+                            yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
+                            with Collapsible(title=f"{tail} smaller factors", collapsed=True):
+                                yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
+                            yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
+                        with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
+                            yield Static(self.idiosyncratic_summary(), classes="legend")
+                            yield DataTable(id="idiosyncratic", cursor_type="none", zebra_stripes=True)
+                    with Vertical(classes="col"):
+                        with Collapsible(title="Active return attribution", collapsed=False):
+                            yield Horizontal(*self.horizon_buttons(), id="horizons")
+                            yield Static(id="returns_summary", classes="legend")
+                            yield Static("[b]Active return reconciliation[/]", classes="legend")
+                            yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
+                            yield Static("[b]Top active return contributors[/]", classes="legend")
+                            yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
+                        with Collapsible(title="Idiosyncratic return — name drivers", collapsed=False):
+                            yield DataTable(id="idiosyncratic_returns", cursor_type="none", zebra_stripes=True)
+                        with Collapsible(title="Benchmark", collapsed=True):
+                            yield Static(self.benchmark_text(), classes="legend")
+                        with Collapsible(title="Parametric loss & beta", collapsed=True):
+                            yield Static(self.tail_text(), classes="legend")
+                        with Collapsible(title="Footnotes", collapsed=True):
+                            yield Static(self.footnotes_text(), classes="legend")
+            if self.chat:
+                with Vertical(id="chat_sidebar"):
+                    yield Static("[b]Ask OpenFactor[/]\n[dim]Questions use this TUI report.[/]", id="chat_title")
+                    yield RichLog(id="chat_log", wrap=True, markup=True, highlight=False, auto_scroll=True)
+                    yield Input(placeholder="Ask about beta, TE, attribution...", id="chat_input")
         yield Footer()
 
     def on_mount(self):
         self.populate_risk()
         self.populate_active()
-        self.populate_specific()
-        self.populate_specific_returns()
+        self.populate_idiosyncratic()
+        self.populate_idiosyncratic_returns()
         self.populate_returns()
+        if self.chat:
+            self.append_chat("OpenFactor", "Ask about this TUI report, beta hedges, tracking error, or attribution.")
 
     # ---- headline -------------------------------------------------------
     def header_line(self):
@@ -235,7 +256,7 @@ class OpenFactorTUI(App):
             card("Tracking error", pct1(s["tracking_error"]), s["tracking_error_label"]),
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
             card("Ex-ante beta", beta_value(s["predicted_beta"]), self.beta_card_sub()),
-            card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
+            card("Idiosyncratic", pct1(s["idiosyncratic_share_of_tracking_error"]), "of tracking error"),
             card("Info ratio", *self.ir_card()),
         ]
 
@@ -289,10 +310,10 @@ class OpenFactorTUI(App):
 
     def populate_active(self):
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
-        self.fill_active(self.query_one("#active", DataTable), active[:TOP_N], specific=True)
-        self.fill_active(self.query_one("#active_tail", DataTable), active[TOP_N:], specific=False)
+        self.fill_active(self.query_one("#active", DataTable), active[:TOP_N], include_idiosyncratic=True)
+        self.fill_active(self.query_one("#active_tail", DataTable), active[TOP_N:], include_idiosyncratic=False)
 
-    def fill_active(self, table, rows, specific):
+    def fill_active(self, table, rows, include_idiosyncratic):
         table.add_columns("Factor", "Family", "Active", "Factor Vol", "TE Contrib", "% TE")
         for row in rows:
             table.add_row(
@@ -303,29 +324,29 @@ class OpenFactorTUI(App):
                 contribution_cell(row["te_contribution"]),
                 te_cell(row["te_share"]),
             )
-        if specific:
+        if include_idiosyncratic:
             table.add_row(
                 Text("Idiosyncratic risk", style="bold"),
                 "",
                 "",
                 "",
-                vol_cell(self.report["specific_te_contribution"], bold=True),
-                te_cell(self.report["specific_te_share"], bold=True),
+                vol_cell(self.report["idiosyncratic_te_contribution"], bold=True),
+                te_cell(self.report["idiosyncratic_te_share"], bold=True),
             )
 
-    def populate_specific(self):
-        table = self.query_one("#specific", DataTable)
+    def populate_idiosyncratic(self):
+        table = self.query_one("#idiosyncratic", DataTable)
         table.add_columns("Ticker", "Weight", "Idiosyncratic vol", "Share of idiosyncratic")
-        for name in self.report["names"]["names"]:
+        for name in self.report["idiosyncratic_risk_by_name"]["rows"]:
             table.add_row(
                 name["ticker"], pct1(name["weight"]),
-                pct1(name["specific_vol"]), te_cell(name["share"]),
+                pct1(name["idiosyncratic_vol"]), te_cell(name["idiosyncratic_variance_share"]),
             )
 
-    def populate_specific_returns(self):
-        table = self.query_one("#specific_returns", DataTable)
+    def populate_idiosyncratic_returns(self):
+        table = self.query_one("#idiosyncratic_returns", DataTable)
         table.add_columns("Ticker", "Weight", "Contribution", "% Idio")
-        rows = self.report.get("specific_return_names") or []
+        rows = self.report.get("idiosyncratic_return_by_name") or []
         if not rows:
             table.add_row("—", Text("—", style="dim"), Text("—", style="dim"), Text("—", style="dim"))
             return
@@ -334,7 +355,7 @@ class OpenFactorTUI(App):
                 row["ticker"],
                 pct1(row["weight"]),
                 signed_cell(row["contribution"]),
-                idio_share_cell(row["share"], row["contribution"]),
+                idiosyncratic_share_cell(row["share"], row["contribution"]),
             )
 
     def populate_returns(self):
@@ -394,9 +415,9 @@ class OpenFactorTUI(App):
             return_row(
                 "Idiosyncratic return",
                 "Idiosyncratic",
-                r["specific_ret"][horizon],
-                share_of(r["specific_ret"][horizon], active),
-                r["specific_te_share"],
+                r["idiosyncratic_return"][horizon],
+                share_of(r["idiosyncratic_return"][horizon], active),
+                r["idiosyncratic_te_share"],
                 "section",
             ),
             return_row("Active return", "Total", active, share_of(active, active), None, "total"),
@@ -466,14 +487,14 @@ class OpenFactorTUI(App):
             factors.append(
                 return_row(label, fam, value, share_of(value, real["active"]), te, "factor")
             )
-        specific = active_residual(real["active"], families, real["specific"])
+        idiosyncratic = active_residual(real["active"], families, real["idiosyncratic"])
         recon += [
             return_row(
                 "Idiosyncratic return",
                 "Idiosyncratic",
-                specific,
-                share_of(specific, real["active"]),
-                r["specific_te_share"],
+                idiosyncratic,
+                share_of(idiosyncratic, real["active"]),
+                r["idiosyncratic_te_share"],
                 "section",
             ),
             return_row(
@@ -493,16 +514,16 @@ class OpenFactorTUI(App):
         s = self.report["summary"]
         return (
             f"Common factor {pct1(s['factor_share'])} of total variance · "
-            f"idiosyncratic {pct1(s['specific_share_total'])} · "
+            f"idiosyncratic {pct1(s['idiosyncratic_share_of_total_variance'])} · "
             f"active tracking error {pct1(s['tracking_error'])}"
         )
 
-    def specific_summary(self):
-        n = self.report["names"]
+    def idiosyncratic_summary(self):
+        n = self.report["idiosyncratic_risk_by_name"]
         eff = "—" if n["effective_names"] is None else f"{n['effective_names']:.1f}"
-        top = n["names"][0]["ticker"] if n["names"] else "—"
-        return (f"Idiosyncratic risk {pct1(n['total_specific'])} of the book · top name "
-                f"[b]{top}[/] = {pct1(n['top_share'])} · effective names {eff}")
+        top = n["rows"][0]["ticker"] if n["rows"] else "—"
+        return (f"Idiosyncratic risk {pct1(n['total_idiosyncratic_risk'])} of the book · top name "
+                f"[b]{top}[/] = {pct1(n['top_name_share'])} · effective names {eff}")
 
     def tail_text(self):
         s = self.report["summary"]
@@ -512,7 +533,7 @@ class OpenFactorTUI(App):
         target = "model risk proxy" if self.report["meta"]["benchmark"].get("kind") in {"index", "missing"} else "benchmark"
         lines.append(f"[b]Ex-ante beta[/] to {target}: {beta_value(s['predicted_beta'])}")
         lines += self.track_lines()
-        lines.append("[dim]Historical and macro scenarios are not shown because the published snapshot "
+        lines.append("[dim]Historical and macro scenarios are not shown because this report "
                      "does not carry an external shock library. They are omitted rather than faked.[/]")
         return "\n".join(lines)
 
@@ -571,6 +592,31 @@ class OpenFactorTUI(App):
         if self.report.get("realized"):
             self.query_one("#htrack", Button).variant = "success" if self.horizon == "track" else "default"
         self.populate_returns()
+
+    async def on_input_submitted(self, event):
+        if event.input.id != "chat_input" or not self.chat:
+            return
+        question = event.value.strip()
+        event.input.value = ""
+        if not question:
+            return
+        event.input.disabled = True
+        self.append_chat("You", question)
+        try:
+            answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history)
+        except Exception as error:
+            self.append_chat("OpenFactor", f"Chat error: {error}")
+        else:
+            self.chat_history.append({"role": "user", "content": question})
+            self.chat_history.append({"role": "assistant", "content": answer})
+            self.append_chat("OpenFactor", answer)
+        finally:
+            event.input.disabled = False
+            event.input.focus()
+
+    def append_chat(self, author, body):
+        log = self.query_one("#chat_log", RichLog)
+        log.write(f"[b]{escape(author)}[/]\n{escape(body)}\n")
 
     def action_expand_all(self):
         for widget in self.query(Collapsible):

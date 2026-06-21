@@ -38,7 +38,7 @@ The model package loads:
 | `residual_returns` | Recent per-stock residual returns after common factors |
 | `exposures_panel` | Lagged exposure rows for 1-day return attribution (loaded on demand) |
 | `factor_covariance` | Annualized factor covariance matrix |
-| `specific_risk` | Annualized idiosyncratic residual risk |
+| `idiosyncratic_risk` | Annualized idiosyncratic residual risk |
 | `metadata` | Universe name, model version, and model metadata |
 
 These files are enough to report portfolio exposures, common-factor risk,
@@ -129,7 +129,7 @@ decision numbers:
   ranked factor details with contribution, `% Active`, and `TE Share` side by
   side. Longer real attribution comes from an accumulated `--track` history,
   not from running today's weights backward.
-- **Idiosyncratic return by name** — the holdings that drove the stock-specific
+- **Idiosyncratic return by name** — the holdings that drove the name-level
   return line, adjusted so the name rows reconcile to the benchmark-relative
   idiosyncratic return shown in the active-return table.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
@@ -174,7 +174,7 @@ for a reproducible historical run.
 | `missing_holdings` | Holdings not found in the model universe |
 | `style` | Portfolio exposure to scalar factors |
 | `sector` | Portfolio sector allocation |
-| `specific_risk` | Holding-level idiosyncratic risk |
+| `idiosyncratic_risk` | Holding-level idiosyncratic risk |
 | `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
 | `active_risk` | Benchmark-relative factor exposure and tracking-error contribution |
 | `risk_share` | Factor vs idiosyncratic variance share |
@@ -643,7 +643,7 @@ details/exposures_panel.csv.gz
 factor_returns.csv
 residual_returns.csv
 factor_covariance.csv
-specific_risk.csv
+idiosyncratic_risk.csv
 universe.csv
 indexes.csv
 index_prices.csv
@@ -663,7 +663,7 @@ Current public files:
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
 | Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
-| Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
+| Idiosyncratic risk | [idiosyncratic_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/idiosyncratic_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
 | Index metadata | [indexes.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/indexes.csv) |
 | Index prices | [index_prices.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_prices.csv) |
@@ -678,7 +678,7 @@ snapshot.exposures
 snapshot.factor_returns
 snapshot.residual_returns
 snapshot.factor_covariance
-snapshot.specific_risk
+snapshot.idiosyncratic_risk
 snapshot.indexes
 snapshot.index_prices
 snapshot.index_returns

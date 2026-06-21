@@ -81,7 +81,7 @@ def snapshot_csvs(snapshot):
             SNAPSHOT_FILES["factor_covariance"],
             spreadsheet_csv(sorted_covariance(snapshot.factor_covariance), True, "factor"),
         ),
-        (SNAPSHOT_FILES["specific_risk"], spreadsheet_csv(sort_tickers(snapshot.specific_risk))),
+        (SNAPSHOT_FILES["idiosyncratic_risk"], spreadsheet_csv(sort_tickers(snapshot.idiosyncratic_risk))),
         (SNAPSHOT_FILES["universe"], spreadsheet_csv(sort_tickers(snapshot.universe))),
     ]
     files += index_csvs(snapshot)

@@ -40,7 +40,7 @@ details/exposures_long.csv
 factor_returns.csv
 residual_returns.csv
 factor_covariance.csv
-specific_risk.csv
+idiosyncratic_risk.csv
 universe.csv
 indexes.csv
 index_prices.csv
@@ -59,7 +59,7 @@ Current public files:
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
 | Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
-| Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
+| Idiosyncratic risk | [idiosyncratic_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/idiosyncratic_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
 | Index metadata | [indexes.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/indexes.csv) |
 | Index prices | [index_prices.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/index_prices.csv) |

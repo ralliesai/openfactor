@@ -16,7 +16,7 @@ SNAPSHOT_FILES = {
     "factor_returns": "factor_returns.csv",
     "residual_returns": "residual_returns.csv",
     "factor_covariance": "factor_covariance.csv",
-    "specific_risk": "specific_risk.csv",
+    "idiosyncratic_risk": "idiosyncratic_risk.csv",
     "universe": "universe.csv",
     "indexes": "indexes.csv",
     "index_prices": "index_prices.csv",
@@ -39,7 +39,7 @@ class Snapshot:
     factor_returns: pd.DataFrame
     residual_returns: pd.DataFrame
     factor_covariance: pd.DataFrame
-    specific_risk: pd.DataFrame
+    idiosyncratic_risk: pd.DataFrame
     universe: pd.DataFrame
     metadata: dict
     exposures_panel: pd.DataFrame = None
@@ -90,7 +90,7 @@ def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None, include_exp
             with_query(f"{prefix}/{SNAPSHOT_FILES['factor_covariance']}", cache_bust),
             index_col=0,
         ),
-        specific_risk=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['specific_risk']}", cache_bust)),
+        idiosyncratic_risk=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['idiosyncratic_risk']}", cache_bust)),
         universe=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['universe']}", cache_bust)),
         metadata=metadata,
         exposures_panel=load_exposures_panel(prefix, cache_bust, include_exposures_panel),

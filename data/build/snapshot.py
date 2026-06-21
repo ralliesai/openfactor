@@ -43,7 +43,7 @@ from openfactor.io.snapshot import Snapshot
 from openfactor.model.factor_returns import factor_model_history
 from openfactor.model.normalize import normalize_exposures
 from openfactor.model.risk import factor_covariance
-from openfactor.model.specific_risk import specific_risk_from_residuals
+from openfactor.model.idiosyncratic_risk import idiosyncratic_risk_from_residuals
 
 
 LOGGER = logging.getLogger("openfactor.build")
@@ -210,7 +210,7 @@ class DatasetBuilder:
             factor_returns=factor_returns,
             residual_returns=residuals,
             factor_covariance=factor_covariance(factor_returns),
-            specific_risk=specific_risk_from_residuals(residuals),
+            idiosyncratic_risk=idiosyncratic_risk_from_residuals(residuals),
             universe=self.universe_frame(matrix.tickers, matrix.dates[-1]),
             metadata=self.metadata(matrix, prices, factor_returns, metadata, index_prices),
             exposures_panel=exposures_panel,

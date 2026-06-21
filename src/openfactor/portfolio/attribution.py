@@ -22,9 +22,9 @@ def return_attribution(portfolio, snapshot):
     require_columns(panel, ["factor", "group"])
     weights = weights_for(portfolio)
     contrib = daily_contributions(factor_exposure_panel(panel, weights), snapshot.factor_returns)
-    specific = specific_contributions(snapshot.residual_returns, weights)
+    idiosyncratic = idiosyncratic_contributions(snapshot.residual_returns, weights)
     groups = panel.drop_duplicates("factor").set_index("factor")["group"].to_dict()
-    return attribution_rows(contrib, specific, groups)
+    return attribution_rows(contrib, idiosyncratic, groups)
 
 
 def attribution_index(portfolio, snapshot):
@@ -42,11 +42,11 @@ def attribution_index(portfolio, snapshot):
     contrib = daily_contributions(factor_exposure_panel(panel, weights), snapshot.factor_returns)
     if contrib.empty:
         return None
-    specific = specific_contributions(snapshot.residual_returns, weights).reindex(contrib.index)
+    idiosyncratic = idiosyncratic_contributions(snapshot.residual_returns, weights).reindex(contrib.index)
     groups = panel.drop_duplicates("factor").set_index("factor")["group"].to_dict()
     dates = sorted(contrib.dropna(how="all").index)
     factor_h = trailing_sums(contrib, dates)
-    spec_h = [float(value) for value in trailing_sums(specific, dates)]
+    idiosyncratic_h = [float(value) for value in trailing_sums(idiosyncratic, dates)]
     families = {factor: family(factor, groups) for factor in contrib.columns}
 
     def family_sum(name):
@@ -58,8 +58,8 @@ def attribution_index(portfolio, snapshot):
         "factor": {f: [float(series.get(f, np.nan)) for series in factor_h] for f in contrib.columns},
         "family": {name: family_sum(name) for name in ["Market", "Style", "Sector", "Industry"]},
         "common": common,
-        "specific": spec_h,
-        "total": [c + s for c, s in zip(common, spec_h)],
+        "idiosyncratic": idiosyncratic_h,
+        "total": [c + s for c, s in zip(common, idiosyncratic_h)],
     }
 
 
@@ -101,7 +101,7 @@ def daily_contributions(exposure, factor_returns):
     return lagged[factors].reindex(returns.index) * returns[factors]
 
 
-def specific_contributions(residual_returns, weights):
+def idiosyncratic_contributions(residual_returns, weights):
     """Return the portfolio's idiosyncratic return on every date.
 
     Example:
@@ -125,7 +125,7 @@ def trailing_sums(series, dates):
     return [series.reindex(dates[-window:]).sum() for _, window in HORIZONS]
 
 
-def attribution_rows(contrib, specific, groups):
+def attribution_rows(contrib, idiosyncratic, groups):
     """Return nested contribution rows ending in a reconciling total.
 
     Example:
@@ -136,9 +136,9 @@ def attribution_rows(contrib, specific, groups):
     dates = sorted(contrib.dropna(how="all").index)
     if not dates:
         return []
-    specific = specific.reindex(contrib.index)
+    idiosyncratic = idiosyncratic.reindex(contrib.index)
     factor_h = trailing_sums(contrib, dates)
-    spec_h = [float(value) for value in trailing_sums(specific, dates)]
+    idiosyncratic_h = [float(value) for value in trailing_sums(idiosyncratic, dates)]
     families = {factor: family(factor, groups) for factor in contrib.columns}
     active = set(contrib.columns[contrib.abs().sum() > 1e-9])
 
@@ -152,8 +152,8 @@ def attribution_rows(contrib, specific, groups):
         rows.append(totals_row(f"  {name}", "group", [series.reindex(members).sum() for series in factor_h]))
         for factor in sorted(members, key=lambda f: -abs(factor_h[-1].get(f, 0.0))):
             rows.append(factor_row("    " + clean_label(factor), factor_h, factor))
-    rows.append(totals_row("Idiosyncratic", "section", spec_h))
-    rows.append(totals_row("Total Return", "total", [series.sum() + spec for series, spec in zip(factor_h, spec_h)]))
+    rows.append(totals_row("Idiosyncratic", "section", idiosyncratic_h))
+    rows.append(totals_row("Total Return", "total", [series.sum() + idio for series, idio in zip(factor_h, idiosyncratic_h)]))
     return rows
 
 
