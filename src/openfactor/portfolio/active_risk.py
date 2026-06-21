@@ -73,7 +73,7 @@ def benchmark_profile(snapshot):
 
 
 def specific_by_name(portfolio, snapshot):
-    """Return each holding's share of the portfolio's stock-specific risk.
+    """Return each holding's share of the portfolio's idiosyncratic risk.
 
     Example:
         a concentrated name with high residual volatility dominates the

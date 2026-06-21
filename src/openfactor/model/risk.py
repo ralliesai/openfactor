@@ -118,10 +118,10 @@ def missing_model_exposures(exposures, covariance):
 
 
 def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True):
-    """Return total, factor, and stock-specific portfolio risk.
+    """Return total, factor, and idiosyncratic portfolio risk.
 
     Example:
-        12% factor risk and 5% specific risk combine to 13% total risk.
+        12% factor risk and 5% idiosyncratic risk combine to 13% total risk.
         strict=False skips unmodeled names (benchmark-relative tracking error).
     """
     factor_variance = factor_report["variance_contribution"].sum()
@@ -129,7 +129,7 @@ def portfolio_risk_report(factor_report, specific_risks, portfolio, strict=True)
     total = np.sqrt(max(factor_variance, 0.0) + specific**2)
     rows = [
         ("factor", np.sqrt(max(factor_variance, 0.0))),
-        ("stock_specific", specific),
+        ("idiosyncratic", specific),
         ("total", total),
     ]
     return pd.DataFrame(rows, columns=["component", "risk"]).set_index("component")

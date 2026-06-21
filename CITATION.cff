@@ -7,7 +7,7 @@ authors:
     family-names: Ahmad
     alias: faizann24
     website: "https://github.com/faizann24"
-abstract: "OpenFactor is an open-source equity factor risk model for portfolio exposures, factor risk attribution, and stock-specific risk."
+abstract: "OpenFactor is an open-source equity factor risk model for portfolio exposures, factor risk attribution, and idiosyncratic risk."
 repository-code: "https://github.com/ralliesai/openfactor"
 url: "https://rallies.ai"
 license: Apache-2.0

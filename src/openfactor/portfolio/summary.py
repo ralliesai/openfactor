@@ -17,7 +17,7 @@ def risk_decomposition(portfolio, snapshot):
 
     Example:
         risk_decomposition(portfolio, snapshot) returns (summary, rows)
-        with common-factor, style, industry, specific, and total rows.
+        with common-factor, style, industry, idiosyncratic, and total rows.
     """
     exposures, cov = snapshot.exposures, snapshot.factor_covariance
     fr = factor_risk_report_from_covariance(exposures, portfolio, cov)
@@ -76,7 +76,7 @@ def decomposition_rows(fr, summary, common_share, specific_share):
         rows.append(node(f"  {name}", "group", pct=float(sub["pct"].sum())))
         for factor, row in sub.sort_values("pct", ascending=False).iterrows():
             rows.append(leaf(row, "    ", clean_label(factor), factor))
-    rows.append(risk_row("Specific", "section", summary["specific"], summary["active_specific"], specific_share))
+    rows.append(risk_row("Idiosyncratic", "section", summary["specific"], summary["active_specific"], specific_share))
     rows.append(risk_row("Total", "total", summary["total"], summary["tracking_error"], 1.0))
     return rows
 
@@ -126,7 +126,7 @@ def node(label, kind, exposure=np.nan, active=np.nan, volatility=np.nan, pct=np.
     """Return one decomposition row.
 
     Example:
-        node("Specific", "section", pct=0.36) is a bold subtotal row.
+        node("Idiosyncratic", "section", pct=0.36) is a bold subtotal row.
     """
     return {"label": label, "kind": kind, "exposure": exposure, "active": active,
             "volatility": volatility, "pct": pct, "family": family, "key": key}
@@ -136,7 +136,7 @@ def risk_summary(factor_var, specific, ar, active, snapshot):
     """Return standalone portfolio and active (tracking-error) risks.
 
     Example:
-        total, common-factor, specific, and tracking-error volatilities.
+        total, common-factor, idiosyncratic, and tracking-error volatilities.
     """
     active_factor = np.sqrt(max(float(ar["variance_contribution"].sum()), 0.0))
     active_specific = portfolio_specific_risk(active, snapshot.specific_risk, strict=False)

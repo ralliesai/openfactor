@@ -262,7 +262,7 @@ class OpenFactorTUI(App):
             )
         if specific:
             table.add_row(
-                Text("Idiosyncratic (stock-picking)", style="bold"),
+                Text("Idiosyncratic residual", style="bold"),
                 "",
                 "",
                 "",
@@ -301,7 +301,7 @@ class OpenFactorTUI(App):
         table.add_columns("Factor", "Family", "Contribution")
         for row in rows[:TOP_N]:
             table.add_row(row["label"], row["family"], signed_cell(row["ret"][h]))
-        table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", signed_cell(r["specific_ret"][h]))
+        table.add_row(Text("Idiosyncratic residual", style="bold"), "", signed_cell(r["specific_ret"][h]))
         table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(r["active_ret"][h], bold=True))
 
     def populate_realized(self):
@@ -325,7 +325,7 @@ class OpenFactorTUI(App):
         for factor, value in items[:TOP_N]:
             label, fam = lookup.get(factor, (factor, "—"))
             table.add_row(label, fam, signed_cell(value))
-        table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", signed_cell(real["specific"]))
+        table.add_row(Text("Idiosyncratic residual", style="bold"), "", signed_cell(real["specific"]))
         table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(real["active"], bold=True))
 
     # ---- text panels ----------------------------------------------------
@@ -333,7 +333,7 @@ class OpenFactorTUI(App):
         s = self.report["summary"]
         return (
             f"Common factor {pct1(s['factor_share'])} of total variance · "
-            f"specific {pct1(s['specific_share_total'])} · "
+            f"idiosyncratic {pct1(s['specific_share_total'])} · "
             f"active tracking error {pct1(s['tracking_error'])}"
         )
 
@@ -383,8 +383,8 @@ class OpenFactorTUI(App):
             "[3] Tracking error is active risk: portfolio minus the cap-weighted model benchmark.",
             "[4] TE contribution is variance contribution divided by total tracking error; negative values "
             "are diversifiers in the current covariance matrix.",
-            "[5] Specific risk is stock-level residual risk after common factors. It is not automatically "
-            "good stock-picking skill.",
+            "[5] Idiosyncratic risk is stock-level residual risk after common factors. It is not automatically "
+            "stock-picking skill.",
             "[6] The 1-week attribution uses today's holdings run backward. The Realized button, when present, "
             "sums the holdings actually stored by --track.",
         ])

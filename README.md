@@ -4,7 +4,7 @@
 
 **Open-source equity factor risk model**
 
-*Portfolio exposures, factor risk attribution, and stock-specific risk*
+*Portfolio exposures, factor risk attribution, and idiosyncratic risk*
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -38,11 +38,11 @@ The model package loads:
 | `residual_returns` | Recent per-stock residual returns after common factors |
 | `exposures_panel` | Per-date exposure history for return attribution (loaded on demand) |
 | `factor_covariance` | Annualized factor covariance matrix |
-| `specific_risk` | Annualized stock-specific residual risk |
+| `specific_risk` | Annualized idiosyncratic residual risk |
 | `metadata` | Universe name, model version, and model metadata |
 
 These files are enough to report portfolio exposures, common-factor risk,
-stock-specific risk, and total risk without direct access to vendor data.
+idiosyncratic risk, and total risk without direct access to vendor data.
 
 ## Python Usage
 
@@ -85,14 +85,14 @@ that works in **active (tracking-error) space** against the cap-weighted univers
 benchmark and leads with the decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
-  beta to the benchmark, and the specific share of tracking error.
+  beta to the benchmark, and the idiosyncratic share of tracking error.
 - **Portfolio risk** — the current absolute risk decomposition: common factor,
-  market, style, sector, industry, stock-specific, and total risk.
+  market, style, sector, industry, idiosyncratic, and total risk.
 - **Active risk** — every factor's active exposure and its **% of the
   tracking-error budget**, sorted, with annualized contribution-to-tracking-error
   shown next to the share. Diversifying factors (those that *reduce* tracking
   error through covariance) are shown in green.
-- **Stock-specific risk by name** — which holdings are the idiosyncratic risk,
+- **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
 - **Return attribution** — model benchmark → portfolio → active (excess) over
   1-day (default) / 1-week (toggle with the buttons), with the date range and the
@@ -142,12 +142,12 @@ for a reproducible historical run.
 | `missing_holdings` | Holdings not found in the model universe |
 | `style` | Portfolio exposure to scalar factors |
 | `sector` | Portfolio sector allocation |
-| `specific_risk` | Holding-level stock-specific risk |
+| `specific_risk` | Holding-level idiosyncratic risk |
 | `factor_risk` | Factor exposure, factor volatility, risk contribution, and variance contribution |
 | `active_risk` | Benchmark-relative factor exposure and tracking-error contribution |
-| `risk_share` | Factor vs stock-specific variance share |
-| `total_risk` | Factor, stock-specific, and total annualized risk |
-| `tracking_error` | Active factor, stock-specific, and total tracking error vs the benchmark |
+| `risk_share` | Factor vs idiosyncratic variance share |
+| `total_risk` | Factor, idiosyncratic, and total annualized risk |
+| `tracking_error` | Active factor, idiosyncratic, and total tracking error vs the benchmark |
 
 Example report access:
 
@@ -178,14 +178,14 @@ Momentum                   ...                ...                ...
 total_risk
                     risk
 factor               ...
-stock_specific       ...
+idiosyncratic        ...
 total                ...
 ```
 
 ## Semantic Residual Discovery
 
 Semantic discovery is on-demand. The base model stays deterministic; the LLM is
-only called when a portfolio still has enough unexplained stock-specific risk to
+only called when a portfolio still has enough unexplained idiosyncratic risk to
 justify looking for a missing common risk.
 
 The bundled client uses web search. Normal OpenFactor reports do not construct
@@ -496,17 +496,17 @@ The fit is built to be robust:
   producing a clean daily history of factor returns and per-stock residuals.
 
 The residuals are what remains after every common factor, and they drive
-stock-specific risk.
+idiosyncratic risk.
 
 ### Risk
 
 Factor covariance is the annualized sample covariance of recent daily factor
-returns. Stock-specific risk is each stock's annualized residual volatility,
+returns. Idiosyncratic risk is each stock's annualized residual volatility,
 treated as uncorrelated across names.
 
 Risk attribution then combines portfolio factor exposures with the factor
-covariance matrix for common-factor risk, and adds stock-specific risk at the
-portfolio level to give factor, specific, and total risk.
+covariance matrix for common-factor risk, and adds idiosyncratic risk at the
+portfolio level to give factor, idiosyncratic, and total risk.
 
 ### Benchmark and active risk
 
@@ -516,7 +516,7 @@ so it ships with the model and needs no index license.
 
 Active exposures are the portfolio's exposures minus the benchmark's
 (`active = portfolio − benchmark`), and the same factor covariance and
-stock-specific risk produce active factor risk, active stock-specific risk, and
+idiosyncratic risk produce active factor risk, active idiosyncratic risk, and
 total **tracking error**. Because style exposures are cap-weighted standardized,
 the benchmark sits near zero on every style factor: active style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
@@ -567,7 +567,7 @@ confirms the factor captures momentum rather than replicating any single index.
 ## Roadmap
 
 OpenFactor ships a clean, transparent baseline today. Planned enhancements to the
-covariance and specific-risk estimation include:
+covariance and idiosyncratic-risk estimation include:
 
 - **Eigenfactor covariance adjustment** — debias the factor covariance for use in
   optimized portfolios.
@@ -576,7 +576,7 @@ covariance and specific-risk estimation include:
 - **Newey-West adjustment** — account for serial correlation in daily factor
   returns.
 - **EWMA / half-life weighting** — give recent observations more weight.
-- **Bayesian shrinkage of specific risk** — stabilize stock-specific estimates
+- **Bayesian shrinkage of idiosyncratic risk** — stabilize idiosyncratic estimates
   using observation counts.
 - **Bias-statistic calibration** — measure the model's forecast accuracy over
   time.
@@ -609,7 +609,7 @@ Current public files:
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
 | Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
-| Specific risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
+| Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
 | Semantic cache | [semantic_factors.csv](https://openfactor-data.rallies.ai/semantic_factors.csv) |
 

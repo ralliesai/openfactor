@@ -14,7 +14,7 @@ def return_attribution(portfolio, snapshot):
 
     Example:
         return_attribution(portfolio, snapshot) decomposes 1-day, 1-month, and
-        1-quarter return into common-factor and specific contributions.
+        1-quarter return into common-factor and idiosyncratic contributions.
     """
     panel = getattr(snapshot, "exposures_panel", None)
     if panel is None or panel.empty:
@@ -102,10 +102,10 @@ def daily_contributions(exposure, factor_returns):
 
 
 def specific_contributions(residual_returns, weights):
-    """Return the portfolio's specific return on every date.
+    """Return the portfolio's idiosyncratic return on every date.
 
     Example:
-        weighting each stock's residual return gives one specific return per day.
+        weighting each stock's residual return gives one idiosyncratic return per day.
     """
     require_columns(residual_returns, ["date", "ticker", "residual_return"])
     frame = residual_returns.copy()
@@ -129,7 +129,7 @@ def attribution_rows(contrib, specific, groups):
     """Return nested contribution rows ending in a reconciling total.
 
     Example:
-        Common Factor, Market, Style, Sector, Industry, Specific, then Total Return.
+        Common Factor, Market, Style, Sector, Industry, Idiosyncratic, then Total Return.
     """
     if contrib.empty:
         return []
@@ -152,7 +152,7 @@ def attribution_rows(contrib, specific, groups):
         rows.append(totals_row(f"  {name}", "group", [series.reindex(members).sum() for series in factor_h]))
         for factor in sorted(members, key=lambda f: -abs(factor_h[-1].get(f, 0.0))):
             rows.append(factor_row("    " + clean_label(factor), factor_h, factor))
-    rows.append(totals_row("Specific", "section", spec_h))
+    rows.append(totals_row("Idiosyncratic", "section", spec_h))
     rows.append(totals_row("Total Return", "total", [series.sum() + spec for series, spec in zip(factor_h, spec_h)]))
     return rows
 

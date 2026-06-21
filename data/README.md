@@ -18,7 +18,7 @@ The scheduled job:
    short-interest inputs.
 3. Computes factor exposures.
 4. Estimates factor returns and covariance.
-5. Estimates stock-specific residual risk.
+5. Estimates idiosyncratic residual risk.
 6. Publishes the public model files.
 
 The publisher skips a date when the complete object set already exists, so the
@@ -50,7 +50,7 @@ Current public files:
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
 | Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |
-| Specific risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
+| Idiosyncratic risk | [specific_risk.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/specific_risk.csv) |
 | Universe | [universe.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/universe.csv) |
 
 ## Private Inputs

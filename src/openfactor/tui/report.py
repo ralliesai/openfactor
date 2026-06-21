@@ -20,12 +20,12 @@ def tui_report(portfolio, snapshot):
 
     Example:
         tui_report(meme_book, us1000) returns headline numbers, the active-risk
-        rows, stock-specific names, and the tail metrics.
+        rows, idiosyncratic name risk, and the tail metrics.
     """
     rows = risk_decomposition(portfolio, snapshot)
     total = find(rows, "Total")
     common = find(rows, "Common Factor")
-    specific = find(rows, "Specific")
+    specific = find(rows, "Idiosyncratic")
     active = active_risk_report(portfolio, snapshot)
     index = attribution_index(portfolio, snapshot)
     attach_returns(active["rows"], index)
@@ -67,7 +67,7 @@ def tui_report(portfolio, snapshot):
 
 
 def today_contributions(index):
-    """Return this snapshot's realized 1-day contribution per factor and specific.
+    """Return this snapshot's realized 1-day contribution per factor and idiosyncratic return.
 
     Example:
         --track stores these so a real holding path can be summed later instead

@@ -46,7 +46,7 @@ def portfolio_report(portfolio, snapshot):
 
     Example:
         portfolio_report(portfolio, snapshot)["total_risk"]
-        returns factor, specific, and total risk rows.
+        returns factor, idiosyncratic, and total risk rows.
     """
     factor_risk = with_display_index(
         factor_risk_report_from_covariance(snapshot.exposures, portfolio, snapshot.factor_covariance)
@@ -121,7 +121,7 @@ def display_factor_name(name):
 
 
 def stock_specific_report(risks, portfolio):
-    """Return stock-specific risk for portfolio tickers.
+    """Return idiosyncratic risk for portfolio tickers.
 
     Example:
         AAPL specific_risk 0.20 returns one AAPL row with 0.20.
