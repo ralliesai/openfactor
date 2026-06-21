@@ -84,21 +84,25 @@ The CLI opens an interactive [Textual](https://textual.textualize.io) terminal
 that works in **active (tracking-error) space** against the cap-weighted universe
 benchmark and leads with the decision numbers:
 
-- **Headline cards** — total risk, tracking error, one-day VaR (95%), predicted
+- **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
   beta to the benchmark, and the specific share of tracking error.
+- **Portfolio risk** — the current absolute risk decomposition: common factor,
+  market, style, sector, industry, stock-specific, and total risk.
 - **Active risk** — every factor's active exposure and its **% of the
-  tracking-error budget**, sorted, with the long tail of near-zero factors
-  collapsed (press `e` / `c` or click to expand/collapse). Diversifying factors
-  (those that *reduce* tracking error) are shown in green.
+  tracking-error budget**, sorted, with annualized contribution-to-tracking-error
+  shown next to the share. Diversifying factors (those that *reduce* tracking
+  error through covariance) are shown in green.
 - **Stock-specific risk by name** — which holdings are the idiosyncratic risk,
   with top-name concentration and the effective number of names.
-- **Return attribution** — benchmark → portfolio → active (excess) over
+- **Return attribution** — model benchmark → portfolio → active (excess) over
   1-day (default) / 1-week (toggle with the buttons), with the date range and the
   per-factor split of the active return. 1-day is your book's actual day; 1-week
   is badged as a current-weights backtest. Longer real attribution comes from an
   accumulated `--track` history, not from running today's weights back.
-- **Tail risk & scenarios** — parametric VaR (95% / 99%, total and active),
-  predicted beta, and a backtested information ratio.
+- **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
+  ex-ante beta, realized beta when a `--track` history exists, and realized
+  information ratio. Historical and macro scenarios are omitted until the
+  snapshot ships a real scenario library.
 
 ### Building a track record
 
@@ -111,11 +115,11 @@ openfactor --portfolio portfolio.csv --track track.csv
 
 Each run upserts one row (keyed by the snapshot date — re-running a date
 overwrites it) with that day's holdings, realized active return, tracking error,
-beta, and that day's **per-factor return breakdown**. Run it daily and the stored
-daily active returns accumulate into a **realized** information ratio, hit rate,
-and cumulative active return (shown in the headline card and the Tail panel once
-enough days exist). To backfill honestly, run past dates (`--snapshot <date>`)
-with the holdings you *actually* held then — not today's weights.
+ex-ante beta, and that day's **per-factor return breakdown**. Run it daily and
+the stored daily returns accumulate into **realized** beta, information ratio,
+hit rate, and cumulative active return (shown once enough days exist). To
+backfill honestly, run past dates (`--snapshot <date>`) with the holdings you
+*actually* held then — not today's weights.
 
 Because each day's factor breakdown is stored, the Return attribution panel gains
 a green **Realized · N d** button that sums those daily contributions over your

@@ -38,19 +38,22 @@ def tui_report(portfolio, snapshot):
     return {
         "today": today_contributions(index),
         "meta": meta(portfolio, snapshot),
+        "risk_rows": rows,
         "summary": {
             "total_risk": total["volatility"],
             "tracking_error": active["tracking_error"],
             "factor_share": common["pct"],
             "specific_share_total": specific["pct"],
             "specific_share_te": active["specific_share"],
+            "specific_te_contribution": active["specific_contribution"],
+            "predicted_beta": tail["beta"],
             "beta": tail["beta"],
             "var": tail["var"],
-            "ir": index["ir"] if index else {"value": None, "days": 0},
             "return": dict(zip(HORIZONS, portfolio_ret)),
         },
         "active_rows": active["rows"],
         "specific_te_share": active["specific_share"],
+        "specific_te_contribution": active["specific_contribution"],
         "specific_ret": index["specific"] if index else blank,
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
@@ -125,7 +128,7 @@ def meta(portfolio, snapshot):
         "missing": missing,
         "benchmark": {
             "name": benchmark_label(snapshot.universe_name),
-            "tagline": "cap-weighted market proxy",
+            "tagline": "cap-weighted model benchmark",
             **benchmark_profile(snapshot),
         },
     }

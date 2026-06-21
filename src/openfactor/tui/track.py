@@ -6,7 +6,7 @@ import pandas as pd
 
 TRADING_DAYS = 252
 FIELDS = ["date", "holdings", "portfolio_return", "benchmark_return", "active_return",
-          "tracking_error", "beta", "total_risk", "idio_share_te",
+          "tracking_error", "beta", "predicted_beta", "total_risk", "idio_share_te",
           "factor_contrib", "specific_contrib"]
 
 
@@ -28,6 +28,7 @@ def record_for(report):
         "active_return": report["active_ret"][0],
         "tracking_error": summary["tracking_error"],
         "beta": summary["beta"],
+        "predicted_beta": summary["predicted_beta"],
         "total_risk": summary["total_risk"],
         "idio_share_te": summary["specific_share_te"],
         "factor_contrib": ";".join(f"{f}:{v:.6f}" for f, v in today["factor"].items()),
@@ -45,6 +46,8 @@ def update_track(path, record):
     new = pd.DataFrame([record])
     if path.exists():
         existing = pd.read_csv(path)
+        if "predicted_beta" not in existing and "beta" in existing:
+            existing["predicted_beta"] = existing["beta"]
         existing = existing[existing["date"].astype(str) != str(record["date"])]
         frame = new if existing.empty else pd.concat([existing, new], ignore_index=True)
     else:
@@ -63,7 +66,14 @@ def realized_stats(frame):
     """
     active = pd.to_numeric(frame.get("active_return"), errors="coerce").dropna()
     days = int(len(active))
-    stats = {"days": days, "ir": None, "mean": None, "hit_rate": None, "cumulative": None}
+    stats = {
+        "days": days,
+        "ir": None,
+        "mean": None,
+        "hit_rate": None,
+        "cumulative": None,
+        "realized_beta": realized_beta(frame),
+    }
     if days:
         stats["cumulative"] = float(active.sum())
         stats["mean"] = float(active.mean())
@@ -71,6 +81,20 @@ def realized_stats(frame):
     if days >= 2 and active.std(ddof=1) > 0:
         stats["ir"] = float(active.mean() / active.std(ddof=1) * np.sqrt(TRADING_DAYS))
     return stats
+
+
+def realized_beta(frame):
+    """Return realized beta from stored portfolio and benchmark returns."""
+    if "portfolio_return" not in frame or "benchmark_return" not in frame:
+        return None
+    returns = frame[["portfolio_return", "benchmark_return"]].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(returns) < 2:
+        return None
+    variance = returns["benchmark_return"].var(ddof=1)
+    if not np.isfinite(variance) or variance <= 0:
+        return None
+    covariance = returns["portfolio_return"].cov(returns["benchmark_return"])
+    return float(covariance / variance)
 
 
 def parse_contrib(text):

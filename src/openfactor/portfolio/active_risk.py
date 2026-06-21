@@ -28,6 +28,7 @@ def active_risk_report(portfolio, snapshot):
     active_specific = portfolio_specific_risk(active, snapshot.specific_risk, strict=False)
     specific_var = 0.0 if pd.isna(active_specific) else float(active_specific) ** 2
     te2 = float(report["variance_contribution"].sum()) + specific_var
+    tracking_error = float(np.sqrt(max(te2, 0.0)))
     groups = exposures.drop_duplicates("factor").set_index("factor")["group"].to_dict()
     rows = [
         {
@@ -35,6 +36,8 @@ def active_risk_report(portfolio, snapshot):
             "label": clean_label(factor),
             "family": family(factor, groups),
             "active_exposure": float(row["exposure"]),
+            "factor_volatility": float(row["factor_volatility"]),
+            "te_contribution": contribution(float(row["variance_contribution"]), tracking_error),
             "te_share": share(float(row["variance_contribution"]), te2),
         }
         for factor, row in report.iterrows()
@@ -42,7 +45,8 @@ def active_risk_report(portfolio, snapshot):
     ]
     return {
         "rows": rows,
-        "tracking_error": float(np.sqrt(max(te2, 0.0))),
+        "tracking_error": tracking_error,
+        "specific_contribution": contribution(specific_var, tracking_error),
         "specific_share": share(specific_var, te2),
     }
 
@@ -148,6 +152,11 @@ def specific_overlap(left, right, snapshot):
 def share(value, total):
     """Return value/total, or None when the total is zero."""
     return value / total if total else None
+
+
+def contribution(variance, risk):
+    """Return variance contribution in annualized risk units."""
+    return variance / risk if risk else None
 
 
 def daily(annual):

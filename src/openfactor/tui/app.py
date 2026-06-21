@@ -7,13 +7,25 @@ from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Stat
 TOP_N = 8
 
 
+def missing(value):
+    return value is None or value != value
+
+
 def pct1(value):
-    return "—" if value is None else f"{value * 100:.1f}%"
+    return "—" if missing(value) else f"{value * 100:.1f}%"
+
+
+def beta_value(value):
+    return "—" if missing(value) else f"{value:.2f}"
+
+
+def magnitude(value):
+    return 0.0 if missing(value) else abs(float(value))
 
 
 def signed_cell(value, bold=False):
     """Return a sign-colored percent cell."""
-    if value is None:
+    if missing(value):
         return Text("—", style="dim")
     text = Text(f"{value * 100:+.2f}%", style=("green" if value >= 0 else "red"))
     if bold:
@@ -23,21 +35,59 @@ def signed_cell(value, bold=False):
 
 def signed(value):
     """Return a sign-colored signed-percent markup string."""
-    if value is None:
+    if missing(value):
         return "[dim]—[/]"
     return f"[{'green' if value >= 0 else 'red'}]{value * 100:+.2f}%[/]"
 
 
 def expo_cell(value):
     """Return a signed exposure cell, red when short of the market."""
+    if missing(value):
+        return Text("—", style="dim")
     return Text(f"{value:+.2f}", style="" if value >= 0 else "red")
+
+
+def vol_cell(value, bold=False):
+    """Return an annualized volatility or risk contribution cell."""
+    if missing(value):
+        return Text("—", style="dim")
+    text = Text(f"{value * 100:.1f}%")
+    if bold:
+        text.stylize("bold")
+    return text
+
+
+def contribution_cell(value):
+    """Return a signed contribution-to-risk cell."""
+    if missing(value):
+        return Text("—", style="dim")
+    return Text(f"{value * 100:+.1f}%", style="" if value >= 0 else "green")
 
 
 def te_cell(value, bold=False):
     """Return a share-of-tracking-error cell; green when diversifying."""
-    if value is None:
+    if missing(value):
         return Text("—", style="dim")
     text = Text(f"{value * 100:+.1f}%", style=("bold" if bold else "") if value >= 0 else "green")
+    return text
+
+
+def share_cell(value, bold=False):
+    """Return an unsigned risk-share cell, except for diversifying negatives."""
+    if missing(value):
+        return Text("—", style="dim")
+    text = Text(f"{value * 100:.1f}%" if value >= 0 else f"{value * 100:+.1f}%",
+                style=("bold" if bold else "") if value >= 0 else "green")
+    return text
+
+
+def label_cell(row):
+    """Return a table label styled by row type."""
+    text = Text(str(row["label"]))
+    if row["kind"] in ("section", "total"):
+        text.stylize("bold")
+    elif row["kind"] == "group":
+        text.stylize("dim")
     return text
 
 
@@ -71,17 +121,24 @@ class OpenFactorTUI(App):
     def compose(self) -> ComposeResult:
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
         tail = max(0, len(active) - TOP_N)
+        _, risk_tail = self.risk_row_sets()
         yield Header(show_clock=False)
         with VerticalScroll():
             yield Static(self.header_line(), classes="subtitle")
             yield Horizontal(*self.cards(), id="cards")
             with Horizontal(id="columns"):
                 with Vertical(classes="col"):
-                    with Collapsible(title="Active risk — what's eating your tracking-error budget", collapsed=False):
+                    with Collapsible(title="Portfolio risk — current snapshot", collapsed=False):
+                        yield Static(self.risk_summary(), classes="legend")
+                        yield DataTable(id="risk", cursor_type="none", zebra_stripes=True)
+                        if risk_tail:
+                            with Collapsible(title=f"{len(risk_tail)} smaller risk drivers", collapsed=True):
+                                yield DataTable(id="risk_tail", cursor_type="none", zebra_stripes=True)
+                    with Collapsible(title="Active risk — tracking-error drivers", collapsed=False):
                         yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
                         with Collapsible(title=f"{tail} smaller factors", collapsed=True):
                             yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
-                        yield Static("[dim]green = diversifying (reduces tracking error)[/]", classes="legend")
+                        yield Static("[dim]green rows reduce tracking error through covariance.[/]", classes="legend")
                     with Collapsible(title="Idiosyncratic risk — which names are the black box", collapsed=False):
                         yield Static(self.specific_summary(), classes="legend")
                         yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
@@ -92,11 +149,14 @@ class OpenFactorTUI(App):
                         yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
                     with Collapsible(title="Benchmark", collapsed=True):
                         yield Static(self.benchmark_text(), classes="legend")
-                    with Collapsible(title="Tail risk & scenarios", collapsed=True):
+                    with Collapsible(title="Parametric loss & beta", collapsed=True):
                         yield Static(self.tail_text(), classes="legend")
+                    with Collapsible(title="Footnotes", collapsed=True):
+                        yield Static(self.footnotes_text(), classes="legend")
         yield Footer()
 
     def on_mount(self):
+        self.populate_risk()
         self.populate_active()
         self.populate_specific()
         self.populate_returns()
@@ -118,9 +178,9 @@ class OpenFactorTUI(App):
             f"[b]{b['name']}[/] · {b['tagline']}\n"
             f"{b['constituents']} constituents · top-10 weight {pct1(b['top10_weight'])} · "
             f"effective names {b['effective_names']:.0f}\n"
-            f"[dim]Cap-weighted — the same methodology as standard large-cap indices. "
+            f"[dim]Cap-weighted model benchmark: the same weighting approach as standard large-cap indices. "
             f"It defines the market the style factors are measured against, so its own style tilts are "
-            f"near zero (largest {tilt}) and its beta is 1.00. That makes it a faithful proxy for the "
+            f"near zero (largest {tilt}) and its ex-ante beta is 1.00. That makes it a faithful proxy for the "
             f"broad US large-cap market; active risk and beta are measured against it.[/]"
         )
 
@@ -131,36 +191,84 @@ class OpenFactorTUI(App):
             card("Total risk", pct1(s["total_risk"]), "annualized volatility"),
             card("Tracking error", pct1(s["tracking_error"]), "active risk vs benchmark"),
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
-            card("Predicted beta", "—" if s["beta"] is None else f"{s['beta']:.2f}", "to benchmark"),
+            card("Ex-ante beta", beta_value(s["predicted_beta"]), self.beta_card_sub()),
             card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
             card("Info ratio", *self.ir_card()),
         ]
+
+    def beta_card_sub(self):
+        """Return the beta card sub-label without mixing forecast and realized beta."""
+        track = self.report.get("track")
+        if track and track.get("realized_beta") is not None:
+            return f"realized {track['realized_beta']:.2f} / {track['days']}d"
+        return "model forecast"
 
     def ir_card(self):
         """Return the info-ratio card value and sub-label.
 
         Example:
-            a stored track record shows "realized, N days"; otherwise a backtest.
+            a stored --track record shows "realized, N days"; without one the
+            ratio stays blank rather than being backtested from today's weights.
         """
         track = self.report.get("track")
         if track and track.get("ir") is not None:
             return f"{track['ir']:.2f}", f"realized, {track['days']} days"
-        backtest = self.report["summary"]["ir"]["value"]
-        return ("—" if backtest is None else f"{backtest:.2f}"), "backtest, not realized"
+        if track and track.get("days"):
+            return "—", f"needs more days ({track['days']})"
+        return "—", "needs --track history"
 
     # ---- tables ---------------------------------------------------------
+    def risk_row_sets(self):
+        """Return top portfolio-risk rows and a collapsed factor tail."""
+        rows = self.report["risk_rows"]
+        factors = [row for row in rows if row["kind"] == "factor"]
+        top_keys = {row["key"] for row in sorted(factors, key=lambda row: -magnitude(row["pct"]))[:TOP_N]}
+        top = [row for row in rows if row["kind"] != "factor" or row["key"] in top_keys]
+        tail = [row for row in factors if row["key"] not in top_keys]
+        return top, sorted(tail, key=lambda row: -magnitude(row["pct"]))
+
+    def populate_risk(self):
+        top, tail = self.risk_row_sets()
+        table = self.query_one("#risk", DataTable)
+        self.fill_risk(table, top)
+        if tail:
+            self.fill_risk(self.query_one("#risk_tail", DataTable), tail)
+
+    def fill_risk(self, table, rows):
+        table.add_columns("Source", "Exposure", "Vol", "% Total")
+        for row in rows:
+            table.add_row(
+                label_cell(row),
+                expo_cell(row["exposure"]),
+                vol_cell(row["volatility"], bold=row["kind"] in ("section", "total")),
+                share_cell(row["pct"], bold=row["kind"] in ("section", "total")),
+            )
+
     def populate_active(self):
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
         self.fill_active(self.query_one("#active", DataTable), active[:TOP_N], specific=True)
         self.fill_active(self.query_one("#active_tail", DataTable), active[TOP_N:], specific=False)
 
     def fill_active(self, table, rows, specific):
-        table.add_columns("Factor", "Family", "Active Exp", "% of Tracking Error")
+        table.add_columns("Factor", "Family", "Active", "Factor Vol", "TE Contrib", "% TE")
         for row in rows:
-            table.add_row(row["label"], row["family"], expo_cell(row["active_exposure"]), te_cell(row["te_share"]))
+            table.add_row(
+                row["label"],
+                row["family"],
+                expo_cell(row["active_exposure"]),
+                vol_cell(row["factor_volatility"]),
+                contribution_cell(row["te_contribution"]),
+                te_cell(row["te_share"]),
+            )
         if specific:
-            table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", "",
-                          te_cell(self.report["specific_te_share"], bold=True))
+            table.add_row(
+                Text("Idiosyncratic (stock-picking)", style="bold"),
+                "",
+                "",
+                "",
+                vol_cell(self.report["specific_te_contribution"], bold=True),
+                te_cell(self.report["specific_te_share"], bold=True),
+            )
 
     def populate_specific(self):
         table = self.query_one("#specific", DataTable)
@@ -184,7 +292,7 @@ class OpenFactorTUI(App):
                  else "[yellow]current-weights backtest — assumes you held today's book the whole window[/]")
         self.query_one("#returns_summary", Static).update(
             f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   {badge}\n"
-            f"Benchmark {signed(r['benchmark_ret'][h])}  →  Portfolio {signed(r['portfolio_ret'][h])}"
+            f"Model benchmark {signed(r['benchmark_ret'][h])}  →  Portfolio {signed(r['portfolio_ret'][h])}"
             f"   =   Active (excess) {signed(r['active_ret'][h])}\n"
             f"[dim]rows below split the active return (top contributors; {tail} smaller factors folded)[/]"
         )
@@ -206,7 +314,7 @@ class OpenFactorTUI(App):
         self.query_one("#returns_summary", Static).update(
             f"[b]Realized · {real['days']} trading day(s)[/] · {real['date_range']}   "
             "[green]your actual book, summed day by day[/]\n"
-            f"Benchmark {signed(real['benchmark'])}  →  Portfolio {signed(real['portfolio'])}"
+            f"Model benchmark {signed(real['benchmark'])}  →  Portfolio {signed(real['portfolio'])}"
             f"   =   Active (excess) {signed(real['active'])}\n"
             f"[dim]each day's real holdings — not today's weights run backward; "
             f"top contributors ({tail} smaller factors folded)[/]"
@@ -221,6 +329,14 @@ class OpenFactorTUI(App):
         table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(real["active"], bold=True))
 
     # ---- text panels ----------------------------------------------------
+    def risk_summary(self):
+        s = self.report["summary"]
+        return (
+            f"Common factor {pct1(s['factor_share'])} of total variance · "
+            f"specific {pct1(s['specific_share_total'])} · "
+            f"active tracking error {pct1(s['tracking_error'])}"
+        )
+
     def specific_summary(self):
         n = self.report["names"]
         eff = "—" if n["effective_names"] is None else f"{n['effective_names']:.1f}"
@@ -230,20 +346,13 @@ class OpenFactorTUI(App):
 
     def tail_text(self):
         s = self.report["summary"]
-        lines = ["[b]Parametric VaR[/] (normal, one-day)"]
+        lines = ["[b]Parametric loss estimate[/] (normal, one-day)"]
         for conf, value in s["var"].items():
             lines.append(f"  {conf}:  total {pct1(value['total_1d'])}   active {pct1(value['active_1d'])}")
-        beta = "—" if s["beta"] is None else f"{s['beta']:.2f}"
-        lines.append(f"[b]Predicted beta[/] to benchmark: {beta}")
-        ir = s["ir"]
-        value = "—" if ir["value"] is None else f"{ir['value']:.2f}"
-        lines.append(f"[b]Information ratio[/] (backtest): {value}  (annualized active return ÷ tracking error)")
-        lines.append(f"[dim]Backtest of current weights over the last {ir['days']} trading days — assumes you held "
-                     "today's book the whole window, so it is not a skill track record.[/]")
+        lines.append(f"[b]Ex-ante beta[/] to benchmark: {beta_value(s['predicted_beta'])}")
         lines += self.track_lines()
-        lines.append("[dim]Historical scenarios (2008, COVID, rates +100bp) need an external scenario set "
-                     "that isn't in the published snapshot, so they're omitted rather than faked. "
-                     "Days-to-liquidate needs volume data the snapshot doesn't carry.[/]")
+        lines.append("[dim]Historical and macro scenarios are not shown because the published snapshot "
+                     "does not carry an external shock library. They are omitted rather than faked.[/]")
         return "\n".join(lines)
 
     def track_lines(self):
@@ -253,15 +362,32 @@ class OpenFactorTUI(App):
             return ["[dim]Pass --track <file> to store each day's result and build a REAL "
                     "track record (realized IR, hit rate) over time.[/]"]
         ir = "—" if track["ir"] is None else f"{track['ir']:.2f}"
+        rb = "—" if track.get("realized_beta") is None else f"{track['realized_beta']:.2f}"
         mean = "—" if track["mean"] is None else f"{track['mean'] * 100:+.3f}%"
         hit = "—" if track["hit_rate"] is None else f"{track['hit_rate'] * 100:.0f}%"
         cum = "—" if track["cumulative"] is None else f"{track['cumulative'] * 100:+.2f}%"
         return [
             f"[b]Track record[/] ({track['days']} day(s) stored)",
-            f"  realized IR {ir} · mean daily active {mean} · hit rate {hit} · cumulative active {cum}",
+            f"  realized beta {rb} · realized IR {ir} · mean daily active {mean}",
+            f"  hit rate {hit} · cumulative active {cum}",
             "[dim]This is your REAL accumulated record from stored days, not a backtest. "
             "More days → more reliable.[/]",
         ]
+
+    def footnotes_text(self):
+        return "\n".join([
+            "[1] Ex-ante risk and beta use today's holdings, current exposures, and the model covariance. "
+            "They are forecasts, not realized history.",
+            "[2] Realized beta appears only with --track history and is computed from stored portfolio "
+            "returns versus stored model-benchmark returns.",
+            "[3] Tracking error is active risk: portfolio minus the cap-weighted model benchmark.",
+            "[4] TE contribution is variance contribution divided by total tracking error; negative values "
+            "are diversifiers in the current covariance matrix.",
+            "[5] Specific risk is stock-level residual risk after common factors. It is not automatically "
+            "good stock-picking skill.",
+            "[6] The 1-week attribution uses today's holdings run backward. The Realized button, when present, "
+            "sums the holdings actually stored by --track.",
+        ])
 
     # ---- interaction ----------------------------------------------------
     def horizon_buttons(self):
