@@ -92,10 +92,28 @@ benchmark and leads with the decision numbers:
   (those that *reduce* tracking error) are shown in green.
 - **Stock-specific risk by name** — which holdings are the idiosyncratic risk,
   with top-name concentration and the effective number of names.
-- **Return attribution** — per-factor contribution over 1-day / 1-month /
-  1-quarter (toggle with the buttons), reconciling to the model return.
-- **Tail risk & scenarios** — parametric VaR (95% / 99%, total and active) and
-  predicted beta.
+- **Return attribution** — benchmark → portfolio → active (excess) over
+  1-day / 1-month / 1-quarter (toggle with the buttons), with the date range and
+  the per-factor split of the active return, reconciling to the model return.
+- **Tail risk & scenarios** — parametric VaR (95% / 99%, total and active),
+  predicted beta, and a backtested information ratio.
+
+### Building a track record
+
+A single run shows where you stand *today*. To turn daily snapshots into a real
+track record, pass `--track <file>`:
+
+```bash
+openfactor --portfolio portfolio.csv --track track.csv
+```
+
+Each run upserts one row (keyed by the snapshot date — re-running a date
+overwrites it) with that day's holdings, realized active return, tracking error,
+and beta. Run it daily and the stored daily active returns accumulate into a
+**realized** information ratio, hit rate, and cumulative active return (shown in
+the headline card and the Tail panel once enough days exist). To backfill
+honestly, run past dates (`--snapshot <date>`) with the holdings you *actually*
+held then — not today's weights.
 
 The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
 in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By

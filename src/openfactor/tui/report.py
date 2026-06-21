@@ -45,6 +45,7 @@ def tui_report(portfolio, snapshot):
             "specific_share_te": active["specific_share"],
             "beta": tail["beta"],
             "var": tail["var"],
+            "ir": index["ir"] if index else {"value": None, "days": 0},
             "return": dict(zip(HORIZONS, portfolio_ret)),
         },
         "active_rows": active["rows"],
@@ -56,6 +57,7 @@ def tui_report(portfolio, snapshot):
         "names": names,
         "horizons": HORIZONS,
         "horizon_dates": horizon_dates(snapshot),
+        "track": None,
     }
 
 
@@ -96,6 +98,8 @@ def meta(portfolio, snapshot):
         "as_of_date": str(snapshot.as_of_date),
         "tickers": int(len(snapshot.universe)),
         "held": int(len(portfolio)),
+        "holdings": [{"ticker": str(ticker), "weight": float(weight)}
+                     for ticker, weight in zip(portfolio["ticker"], portfolio["allocation"])],
         "missing": missing,
         "benchmark": {
             "name": benchmark_label(snapshot.universe_name),

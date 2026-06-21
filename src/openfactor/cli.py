@@ -21,7 +21,14 @@ def main():
         raise SystemExit(str(error)) from error
     print(f"loading {args.universe} @ {args.snapshot} (with exposure panel) …")
     snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
-    OpenFactorTUI(tui_report(portfolio, snapshot)).run()
+    report = tui_report(portfolio, snapshot)
+    if args.track:
+        from openfactor.tui.track import record_for, realized_stats, update_track
+
+        frame = update_track(args.track, record_for(report))
+        report["track"] = realized_stats(frame)
+        print(f"recorded {report['meta']['as_of_date']} → {args.track} ({report['track']['days']} day(s) stored)")
+    OpenFactorTUI(report).run()
 
 
 def parse_args():
@@ -34,6 +41,7 @@ def parse_args():
     parser.add_argument("--universe", default="openfactor-us1000")
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
+    parser.add_argument("--track", help="CSV file to accumulate each day's result into (upserts by date)")
     return parser.parse_args()
 
 

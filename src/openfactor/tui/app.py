@@ -133,7 +133,20 @@ class OpenFactorTUI(App):
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
             card("Predicted beta", "—" if s["beta"] is None else f"{s['beta']:.2f}", "to benchmark"),
             card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
+            card("Info ratio", *self.ir_card()),
         ]
+
+    def ir_card(self):
+        """Return the info-ratio card value and sub-label.
+
+        Example:
+            a stored track record shows "realized, N days"; otherwise a backtest.
+        """
+        track = self.report.get("track")
+        if track and track.get("ir") is not None:
+            return f"{track['ir']:.2f}", f"realized, {track['days']} days"
+        backtest = self.report["summary"]["ir"]["value"]
+        return ("—" if backtest is None else f"{backtest:.2f}"), "backtest, not realized"
 
     # ---- tables ---------------------------------------------------------
     def populate_active(self):
@@ -193,10 +206,33 @@ class OpenFactorTUI(App):
             lines.append(f"  {conf}:  total {pct1(value['total_1d'])}   active {pct1(value['active_1d'])}")
         beta = "—" if s["beta"] is None else f"{s['beta']:.2f}"
         lines.append(f"[b]Predicted beta[/] to benchmark: {beta}")
+        ir = s["ir"]
+        value = "—" if ir["value"] is None else f"{ir['value']:.2f}"
+        lines.append(f"[b]Information ratio[/] (backtest): {value}  (annualized active return ÷ tracking error)")
+        lines.append(f"[dim]Backtest of current weights over the last {ir['days']} trading days — assumes you held "
+                     "today's book the whole window, so it is not a skill track record.[/]")
+        lines += self.track_lines()
         lines.append("[dim]Historical scenarios (2008, COVID, rates +100bp) need an external scenario set "
                      "that isn't in the published snapshot, so they're omitted rather than faked. "
                      "Days-to-liquidate needs volume data the snapshot doesn't carry.[/]")
         return "\n".join(lines)
+
+    def track_lines(self):
+        """Return Track-record lines when a --track file has accumulated days."""
+        track = self.report.get("track")
+        if not track or not track["days"]:
+            return ["[dim]Pass --track <file> to store each day's result and build a REAL "
+                    "track record (realized IR, hit rate) over time.[/]"]
+        ir = "—" if track["ir"] is None else f"{track['ir']:.2f}"
+        mean = "—" if track["mean"] is None else f"{track['mean'] * 100:+.3f}%"
+        hit = "—" if track["hit_rate"] is None else f"{track['hit_rate'] * 100:.0f}%"
+        cum = "—" if track["cumulative"] is None else f"{track['cumulative'] * 100:+.2f}%"
+        return [
+            f"[b]Track record[/] ({track['days']} day(s) stored)",
+            f"  realized IR {ir} · mean daily active {mean} · hit rate {hit} · cumulative active {cum}",
+            "[dim]This is your REAL accumulated record from stored days, not a backtest. "
+            "More days → more reliable.[/]",
+        ]
 
     # ---- interaction ----------------------------------------------------
     def horizon_buttons(self):

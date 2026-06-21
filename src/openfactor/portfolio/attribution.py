@@ -7,6 +7,7 @@ from openfactor.portfolio.summary import clean_label, family
 
 
 HORIZONS = [("1 Day", 1), ("1 Month", 21), ("1 Quarter", 63)]
+TRADING_DAYS = 252
 
 
 def return_attribution(portfolio, snapshot):
@@ -54,13 +55,29 @@ def attribution_index(portfolio, snapshot):
         return [float(series.reindex(members).sum()) for series in factor_h]
 
     common = [float(series.sum()) for series in factor_h]
+    active_daily = contrib.drop(columns=["market"], errors="ignore").sum(axis=1) + specific.fillna(0.0)
     return {
         "factor": {f: [float(series.get(f, np.nan)) for series in factor_h] for f in contrib.columns},
         "family": {name: family_sum(name) for name in ["Market", "Style", "Sector", "Industry"]},
         "common": common,
         "specific": spec_h,
         "total": [c + s for c, s in zip(common, spec_h)],
+        "ir": information_ratio(active_daily),
     }
+
+
+def information_ratio(active_daily):
+    """Return the annualized information ratio of a daily active-return series.
+
+    Example:
+        steady positive active returns at low volatility give a high ratio;
+        this is a backtest of the current weights, not a realized track record.
+    """
+    series = active_daily.dropna()
+    if len(series) < 2 or series.std(ddof=1) == 0:
+        return {"value": None, "days": int(len(series))}
+    value = float(series.mean() / series.std(ddof=1) * np.sqrt(TRADING_DAYS))
+    return {"value": value, "days": int(len(series))}
 
 
 def factor_exposure_panel(panel, weights):
