@@ -9,6 +9,10 @@ it is cheap to host and fast to download. The installed `openfactor` package doe
 not run this pipeline; it reads the published model through
 `openfactor.load_snapshot()`.
 
+`openfactor-us1000` is the stock universe, not the return benchmark. Public
+index files carry SPY, QQQ, and IWM outside the stock universe; the default
+return benchmark is S&P 500 via SPY.
+
 ## Daily Flow
 
 The scheduled job:
@@ -17,7 +21,8 @@ The scheduled job:
 2. Pulls market, reference, filing, estimate, sentiment, dividend, and
    short-interest inputs.
 3. Computes factor exposures.
-4. Estimates factor returns and covariance.
+4. Estimates factor returns and covariance, pinning the market factor to SPY
+   when public index returns are available.
 5. Estimates idiosyncratic residual risk.
 6. Publishes the public model files.
 

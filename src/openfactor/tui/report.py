@@ -38,13 +38,12 @@ def tui_report(portfolio, snapshot):
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
     blank = [None] * len(HORIZONS)
     portfolio_ret = index["total"] if index else blank
-    market_ret = index["factor"].get("market") if index and index["factor"].get("market") is not None else blank
     dates = return_dates(snapshot)
-    benchmark_ret, benchmark_kind = benchmark_returns(snapshot, dates, market_ret)
-    benchmark_basis = [diff(m, b) if benchmark_kind == "index" else 0.0 for m, b in zip(market_ret, benchmark_ret)]
+    benchmark_ret, benchmark_kind = benchmark_returns(snapshot, dates)
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
+    specific_ret = benchmark_relative_specific(index, active_ret)
     return {
-        "today": today_contributions(index),
+        "today": today_contributions(index, specific_ret),
         "meta": meta(portfolio, snapshot, benchmark_context(snapshot, benchmark_kind)),
         "risk_rows": rows,
         "summary": {
@@ -63,12 +62,10 @@ def tui_report(portfolio, snapshot):
         "active_rows": active["rows"],
         "specific_te_share": active["specific_share"],
         "specific_te_contribution": active["specific_contribution"],
-        "specific_ret": index["specific"] if index else blank,
+        "specific_ret": specific_ret,
         "family_ret": index["family"] if index else {},
         "portfolio_ret": portfolio_ret,
         "benchmark_ret": benchmark_ret,
-        "market_ret": market_ret,
-        "benchmark_basis_ret": benchmark_basis,
         "active_ret": active_ret,
         "names": names,
         "horizons": HORIZONS,
@@ -78,7 +75,7 @@ def tui_report(portfolio, snapshot):
     }
 
 
-def today_contributions(index):
+def today_contributions(index, specific_ret):
     """Return this snapshot's realized 1-day contribution per factor and idiosyncratic return.
 
     Example:
@@ -88,8 +85,12 @@ def today_contributions(index):
     if not index:
         return {"factor": {}, "specific": 0.0}
     return {
-        "factor": {factor: num(values[0]) for factor, values in index["factor"].items()},
-        "specific": num(index["specific"][0]),
+        "factor": {
+            factor: num(values[0])
+            for factor, values in index["factor"].items()
+            if factor != "market"
+        },
+        "specific": num(specific_ret[0] if specific_ret else None),
     }
 
 
@@ -120,13 +121,34 @@ def horizon_labels(dates):
     return labels
 
 
-def benchmark_returns(snapshot, dates, market_ret):
-    """Return report benchmark returns, preferring the public SPY index file."""
+def benchmark_returns(snapshot, dates):
+    """Return report benchmark returns from the public SPY index file."""
     ticker = str(snapshot.metadata.get("benchmark_return_ticker", DEFAULT_BENCHMARK_TICKER)).upper()
     values = trailing_index_returns(getattr(snapshot, "index_returns", None), dates, WINDOWS, ticker)
     if any(value is not None for value in values):
         return values, "index"
-    return market_ret, "model"
+    return [None] * len(WINDOWS), "missing"
+
+
+def benchmark_relative_specific(index, active_ret):
+    """Return the benchmark-relative residual needed to reconcile active return.
+
+    Example:
+        active return minus style, sector, and industry blocks leaves the
+        idiosyncratic return versus SPY.
+    """
+    blank = [None] * len(HORIZONS)
+    if not index:
+        return blank
+    raw = index["specific"]
+    values = []
+    for i, active in enumerate(active_ret):
+        if active is None:
+            values.append(raw[i] if i < len(raw) else None)
+            continue
+        explained = sum(num((index["family"].get(name) or blank)[i]) for name in ["Style", "Sector", "Industry"])
+        values.append(active - explained)
+    return values
 
 
 def diff(left, right):
@@ -156,18 +178,18 @@ def meta(portfolio, snapshot, benchmark):
 
 
 def benchmark_context(snapshot, kind):
-    """Return benchmark display context without hiding the risk benchmark."""
-    if kind == "index":
+    """Return benchmark display context without hiding the risk proxy."""
+    if kind in {"index", "missing"}:
         ticker = str(snapshot.metadata.get("benchmark_return_ticker", DEFAULT_BENCHMARK_TICKER)).upper()
         profile = benchmark_profile(snapshot)
         return {
             "name": index_label(getattr(snapshot, "indexes", None), ticker),
-            "tagline": "public index benchmark",
-            "kind": "index",
+            "tagline": "public index benchmark" if kind == "index" else "public index benchmark missing returns",
+            "kind": kind,
             "ticker": ticker,
             "return_source": snapshot.metadata.get("benchmark_return_source", "index_returns.csv"),
             "risk_name": benchmark_label(snapshot.universe_name),
-            "risk_tagline": "cap-weighted model risk benchmark",
+            "risk_tagline": "cap-weighted model risk proxy",
             "risk_constituents": profile["constituents"],
             "risk_top10_weight": profile["top10_weight"],
             "risk_effective_names": profile["effective_names"],
@@ -175,21 +197,21 @@ def benchmark_context(snapshot, kind):
         }
     return {
         "name": benchmark_label(snapshot.universe_name),
-        "tagline": "cap-weighted model benchmark",
+        "tagline": "cap-weighted model risk proxy",
         "kind": "model",
         **benchmark_profile(snapshot),
     }
 
 
 def tracking_error_label(benchmark_kind):
-    """Return the card label for the ex-ante active-risk benchmark."""
-    if benchmark_kind == "index":
-        return "active risk vs model benchmark"
+    """Return the card label for the ex-ante active-risk proxy."""
+    if benchmark_kind in {"index", "missing"}:
+        return "active risk vs model risk proxy"
     return "active risk vs benchmark"
 
 
 def benchmark_label(universe):
-    """Return a display name for the cap-weighted benchmark proxy.
+    """Return a display name for the cap-weighted risk proxy.
 
     Example:
         "openfactor-us1000" becomes "US 1000".

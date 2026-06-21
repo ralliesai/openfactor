@@ -215,11 +215,12 @@ def industry_parent_sectors(x_frame, sectors, industries, weights):
     return pd.DataFrame(rows)
 
 
-def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_limit=5.0):
+def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_limit=5.0, market_return=None):
     """Fit one day's Barra-like factor returns and residuals.
 
     Example:
         two sectors plus beta produce market, sector, and beta returns.
+        Passing market_return fixes the market leg to the benchmark return.
         Sector returns sum to zero across the market.
         Industry returns sum to zero inside each parent sector.
     """
@@ -228,11 +229,15 @@ def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_li
     returns = np.asarray(returns, dtype=float)
     returns = winsorize(returns, return_limit)
     weights = np.ones(len(returns)) if market_caps is None else np.asarray(market_caps, dtype=float)
+    fixed_market = fixed_market_return(market_return)
 
     columns = list(x_frame.columns)
     sector_cols = group_columns(columns, groups, "sector")
     factor_cols = sector_cols + [column for column in columns if column not in sector_cols]
-    design = pd.concat([pd.Series(1.0, index=x_frame.index, name=MARKET_FACTOR), x_frame[factor_cols]], axis=1)
+    if fixed_market is None:
+        design = pd.concat([pd.Series(1.0, index=x_frame.index, name=MARKET_FACTOR), x_frame[factor_cols]], axis=1)
+    else:
+        design = x_frame[factor_cols]
     sectors = x_frame[sector_cols].to_numpy(dtype=float) if sector_cols else np.empty((len(x_frame), 0))
     sector_ok = sectors.sum(axis=1) > 0 if sector_cols else np.ones(len(x_frame), dtype=bool)
     good = (
@@ -243,27 +248,67 @@ def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_li
         & np.isfinite(design.to_numpy(dtype=float)).all(axis=1)
     )
 
-    names = [MARKET_FACTOR] + factor_cols
-    factor_returns = pd.Series(np.nan, index=names)
+    factor_returns = pd.Series(np.nan, index=[MARKET_FACTOR] + factor_cols)
     residuals = pd.Series(np.nan, index=x_frame.index)
     constraints = classification_constraints(x_frame.loc[good, factor_cols], groups, weights[good])
-    constraints = np.column_stack([np.zeros(len(constraints)), constraints])
+    if fixed_market is None:
+        constraints = np.column_stack([np.zeros(len(constraints)), constraints])
     if good.sum() <= design.shape[1] - len(constraints):
+        return factor_returns, residuals
+    if fixed_market is not None and design.shape[1] == 0:
+        factor_returns.loc[MARKET_FACTOR] = fixed_market
+        residuals.iloc[good] = returns[good] - fixed_market
         return factor_returns, residuals
 
     fitted = constrained_lstsq(
         design.loc[good].to_numpy(dtype=float),
-        returns[good],
+        returns[good] if fixed_market is None else returns[good] - fixed_market,
         weights[good],
         constraints,
     )
-    factor_returns.loc[names] = fitted
+    if fixed_market is None:
+        factor_returns.loc[[MARKET_FACTOR] + factor_cols] = fitted
+    else:
+        factor_returns.loc[MARKET_FACTOR] = fixed_market
+        factor_returns.loc[factor_cols] = fitted
     predicted = (
         factor_returns[MARKET_FACTOR]
         + x_frame[factor_cols].to_numpy(dtype=float) @ factor_returns.loc[factor_cols].fillna(0.0).to_numpy()
     )
     residuals.iloc[good] = returns[good] - predicted[good]
     return factor_returns, residuals
+
+
+def fixed_market_return(value):
+    """Return a finite benchmark market return or None.
+
+    Example:
+        fixed_market_return(0.01) lets SPY define the market leg for a day.
+    """
+    if value is None:
+        return None
+    value = float(value)
+    return value if np.isfinite(value) else None
+
+
+def aligned_market_returns(market_returns, matrix):
+    """Return market returns aligned to matrix return dates.
+
+    Example:
+        a Series indexed by close date aligns to matrix.dates[1:].
+    """
+    if market_returns is None:
+        return None
+    if isinstance(market_returns, pd.Series):
+        series = market_returns.copy()
+        series.index = pd.to_datetime(series.index).date.astype(str)
+        dates = [str(date) for date in matrix.dates[1:]]
+        values = pd.to_numeric(series.reindex(dates), errors="coerce").to_numpy(dtype=float)
+    else:
+        values = np.asarray(market_returns, dtype=float)
+    if len(values) != len(matrix.returns):
+        raise ValueError("market_returns must match the number of return rows")
+    return values
 
 
 def factor_model_history(
@@ -274,6 +319,7 @@ def factor_model_history(
     price_factors=None,
     reference_history=None,
     reference_factors=None,
+    market_returns=None,
     progress_label=None,
     collect_panel=False,
 ):
@@ -282,6 +328,8 @@ def factor_model_history(
     Example:
         factor_model_history(matrix, exposures, window=252)
         returns factor_return_rows and residual_return_rows.
+        market_returns can pin the market factor to SPY instead of estimating
+        an intercept from the stock universe.
         collect_panel=True also returns the per-date exposure panel.
     """
     price_factors = price_factors or default_price_factors()
@@ -293,6 +341,7 @@ def factor_model_history(
         static = static.loc[~static["group"].isin(["reference", "sector", "industry"])]
     start = 0 if window is None else max(0, len(matrix.returns) - window)
 
+    benchmark_market = aligned_market_returns(market_returns, matrix)
     factor_rows = []
     residual_rows = []
     panel_frames = []
@@ -321,6 +370,7 @@ def factor_model_history(
             matrix.returns[row],
             factor_groups(daily_exposures),
             market_caps_for(reference_history, matrix.dates[row], matrix.tickers),
+            market_return=None if benchmark_market is None else benchmark_market[row],
         )
         factor_rows.append(factors)
         residual_rows.append(residuals.reindex(matrix.tickers))

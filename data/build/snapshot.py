@@ -36,6 +36,7 @@ from openfactor.io.indexes import (
     DEFAULT_BENCHMARK_TICKER,
     DEFAULT_INDEX_TICKERS,
     index_metadata,
+    index_return_series,
     index_returns_from_prices,
 )
 from openfactor.io.snapshot import Snapshot
@@ -173,6 +174,11 @@ class DatasetBuilder:
             self.compute_exposures(matrix, current_reference),
             self.market_cap_weights(current_reference),
         )
+        index_returns = index_returns_from_prices(index_prices) if index_prices is not None else None
+        benchmark_market = (
+            None if index_returns is None or index_returns.empty
+            else index_return_series(index_returns, DEFAULT_BENCHMARK_TICKER)
+        )
         LOGGER.info(
             "current exposures rows=%s factors=%s",
             len(exposures),
@@ -184,6 +190,7 @@ class DatasetBuilder:
             exposures,
             window=RISK_WINDOW,
             reference_history=fundamentals,
+            market_returns=benchmark_market,
             progress_label="factor returns",
             collect_panel=True,
         )
@@ -208,7 +215,7 @@ class DatasetBuilder:
             exposures_panel=exposures_panel,
             indexes=index_metadata(DEFAULT_INDEX_TICKERS),
             index_prices=index_prices,
-            index_returns=index_returns_from_prices(index_prices) if index_prices is not None else None,
+            index_returns=index_returns,
         )
         LOGGER.info(
             "snapshot ready as_of_date=%s tickers=%s factors=%s",

@@ -194,13 +194,14 @@ class OpenFactorTUI(App):
 
     def benchmark_text(self):
         b = self.report["meta"]["benchmark"]
-        if b.get("kind") == "index":
+        if b.get("kind") in {"index", "missing"}:
             tilt = "—" if b["risk_max_style_tilt"] is None else f"{b['risk_max_style_tilt']:.2f}σ"
+            source = b["return_source"] if b.get("kind") == "index" else f"{b['return_source']} missing"
             return (
                 f"[b]{b['name']}[/] · {b['tagline']}\n"
-                f"{b['ticker']} returns from {b['return_source']} · risk benchmark {b['risk_name']}\n"
+                f"{b['ticker']} returns from {source} · risk proxy {b['risk_name']}\n"
                 f"[dim]Return attribution is benchmarked to the public index return. Ex-ante tracking error "
-                f"and beta still use the model risk benchmark ({b['risk_constituents']} constituents, "
+                f"and beta still use the model risk proxy ({b['risk_constituents']} constituents, "
                 f"top-10 weight {pct1(b['risk_top10_weight'])}, effective names "
                 f"{b['risk_effective_names']:.0f}, largest style tilt {tilt}) until index look-through "
                 f"or index factor exposures are published.[/]"
@@ -210,7 +211,7 @@ class OpenFactorTUI(App):
             f"[b]{b['name']}[/] · {b['tagline']}\n"
             f"{b['constituents']} constituents · top-10 weight {pct1(b['top10_weight'])} · "
             f"effective names {b['effective_names']:.0f}\n"
-            f"[dim]Cap-weighted model benchmark: the same weighting approach as standard large-cap indices. "
+            f"[dim]Cap-weighted model risk proxy: the same weighting approach as standard large-cap indices. "
             f"It defines the market the style factors are measured against, so its own style tilts are "
             f"near zero (largest {tilt}) and its ex-ante beta is 1.00. That makes it a faithful proxy for the "
             f"broad US large-cap market; active risk and beta are measured against it.[/]"
@@ -336,18 +337,6 @@ class OpenFactorTUI(App):
         r = self.report
         active = r["active_ret"][horizon]
         recon = []
-        basis = r["benchmark_basis_ret"][horizon]
-        if not missing(basis) and abs(basis) > 1e-9:
-            recon.append(
-                return_row(
-                    "Market factor - benchmark",
-                    "Benchmark basis",
-                    basis,
-                    share_of(basis, active),
-                    None,
-                    "section",
-                )
-            )
         for name in ["Style", "Sector", "Industry"]:
             value = family_value(r, name, horizon)
             te = family_te_share(r["active_rows"], name)
@@ -433,18 +422,8 @@ class OpenFactorTUI(App):
             f"({tail} smaller factors folded)[/]"
         )
         recon = []
-        if abs(real.get("basis", 0.0)) > 1e-9:
-            recon.append(
-                return_row(
-                    "Market factor - benchmark",
-                    "Benchmark basis",
-                    real["basis"],
-                    share_of(real["basis"], real["active"]),
-                    None,
-                    "section",
-                )
-            )
-        for name, value in realized_family_values(real["factor"], lookup).items():
+        families = realized_family_values(real["factor"], lookup)
+        for name, value in families.items():
             te = family_te_share(r["active_rows"], name)
             if abs(value) > 1e-9:
                 recon.append(
@@ -464,12 +443,13 @@ class OpenFactorTUI(App):
             factors.append(
                 return_row(label, fam, value, share_of(value, real["active"]), te, "factor")
             )
+        specific = active_residual(real["active"], families, real["specific"])
         recon += [
             return_row(
                 "Idiosyncratic return",
                 "Idiosyncratic",
-                real["specific"],
-                share_of(real["specific"], real["active"]),
+                specific,
+                share_of(specific, real["active"]),
                 r["specific_te_share"],
                 "section",
             ),
@@ -506,7 +486,7 @@ class OpenFactorTUI(App):
         lines = ["[b]Parametric loss estimate[/] (normal, one-day)"]
         for conf, value in s["var"].items():
             lines.append(f"  {conf}:  total {pct1(value['total_1d'])}   active {pct1(value['active_1d'])}")
-        target = "model risk benchmark" if self.report["meta"]["benchmark"].get("kind") == "index" else "benchmark"
+        target = "model risk proxy" if self.report["meta"]["benchmark"].get("kind") in {"index", "missing"} else "benchmark"
         lines.append(f"[b]Ex-ante beta[/] to {target}: {beta_value(s['predicted_beta'])}")
         lines += self.track_lines()
         lines.append("[dim]Historical and macro scenarios are not shown because the published snapshot "
@@ -538,7 +518,7 @@ class OpenFactorTUI(App):
             "They are forecasts, not realized history.",
             "[2] Realized beta appears only with --track history and is computed from stored portfolio "
             "returns versus stored benchmark returns.",
-            "[3] Tracking error is active risk from today's holdings versus the model risk benchmark.",
+            "[3] Tracking error is active risk from today's holdings versus the model risk proxy.",
             "[4] TE contribution is variance contribution divided by total tracking error; negative values "
             "are diversifiers in the current covariance matrix.",
             "[5] Idiosyncratic risk is stock-level residual risk after common factors. It is not automatically "
@@ -618,6 +598,13 @@ def realized_family_values(factors, lookup):
         if family in totals and not missing(value):
             totals[family] += value
     return totals
+
+
+def active_residual(active, families, fallback):
+    """Return active return not explained by factor blocks."""
+    if missing(active):
+        return fallback
+    return active - sum(families.values())
 
 
 def share_of(value, total):

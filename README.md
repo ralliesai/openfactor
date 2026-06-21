@@ -76,7 +76,7 @@ data.tickers                    # asset index
 data.exposures                  # assets x factors
 data.factor_covariance          # factors x factors
 data.idiosyncratic_variance     # asset idiosyncratic variance
-data.benchmark_weights          # cap-weighted model benchmark
+data.benchmark_weights          # cap-weighted model risk proxy
 data.factor_groups              # factor group labels
 
 data.factor_exposure(weights)
@@ -112,7 +112,7 @@ present, keeps ex-ante tracking error in model-risk space, and leads with the
 decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
-  beta to the model risk benchmark, and the idiosyncratic share of tracking
+  beta to the model risk proxy, and the idiosyncratic share of tracking
   error.
 - **Portfolio risk** — the current absolute risk decomposition: common factor,
   market, style, sector, industry, idiosyncratic, and total risk.
@@ -319,7 +319,7 @@ object.
       <td rowspan="2"><strong>Market</strong></td>
       <td>Market</td>
       <td><code>market</code></td>
-      <td>Intercept/broad market factor in the cross-sectional return model</td>
+      <td>Benchmark market leg; SPY/S&amp;P 500 in the public default snapshot</td>
     </tr>
     <tr>
       <td>Beta</td>
@@ -509,16 +509,15 @@ Each day, factor returns come from a single Barra-style cross-sectional
 regression of stock returns on exposures:
 
 ```text
-stock return = market + sector + industry + style factors + residual
+stock return = S&P 500 benchmark market + sector + industry + style factors + residual
 ```
 
 The fit is built to be robust:
 
 - **Market-cap weighted (WLS)** — large, liquid names anchor the regression
   instead of microcaps.
-- **Sector returns constrained to a cap-weighted sum of zero**, with the market
-  factor absorbing the shift — sector returns read as clean tilts relative to the
-  market, and the market factor carries the broad move.
+- **Sector returns constrained to a cap-weighted sum of zero**, so sector
+  returns read as clean tilts relative to the benchmark market leg.
 - **Winsorized stock returns** — a single name's blow-up day can't distort the
   estimates.
 - **Explicit market, sector, broad-industry, and style factors**, with
@@ -546,28 +545,32 @@ the stock factor universe. Return attribution uses **S&P 500 via SPY** as the
 default benchmark return when `index_returns.csv` is present, so the headline is
 SPY benchmark return plus active return equals portfolio return.
 
-The ex-ante risk model still needs a holdings-style risk benchmark. Until
+`openfactor-us1000` is the stock universe and public dataset namespace. It is not
+used as the return benchmark. When SPY returns are available, the model pins the
+`market` factor to SPY and estimates the remaining style, sector, industry, and
+idiosyncratic returns around that benchmark leg.
+
+The ex-ante risk model still needs a holdings-style risk proxy. Until
 OpenFactor publishes index look-through or index factor exposures, tracking error
 and model beta use the **cap-weighted model universe** — every model constituent
-weighted by market cap — because that risk benchmark ships with the model and
+weighted by market cap — because that risk proxy ships with the model and
 needs no index license.
 
-Active exposures are the portfolio's exposures minus the benchmark's
-(`active = portfolio − benchmark`), and the same factor covariance and
+Active exposures are the portfolio's exposures minus the risk proxy's
+(`active = portfolio − risk proxy`), and the same factor covariance and
 idiosyncratic risk produce active factor risk, active idiosyncratic risk, and total
 **tracking error**. Because style exposures are cap-weighted standardized,
-the benchmark sits near zero on every style factor: active style exposures read
+the risk proxy sits near zero on every style factor: active style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
-carry the real benchmark-relative bets.
+carry the real risk-proxy-relative bets.
 
-Return attribution uses the same model factors: lagged exposures times realized
-factor returns, plus idiosyncratic returns. When the public index benchmark is
-different from the model market factor, the active-return table adds a
-`Market factor - benchmark` basis row so style, sector, industry,
-idiosyncratic, and basis contributions reconcile exactly to active return.
-`% Active` is contribution divided by active return, so it can exceed 100% when
-positive and negative drivers offset. `TE Share` is the same factor's
-contribution to tracking error from the ex-ante risk model.
+Return attribution uses lagged exposures times realized factor returns, plus
+idiosyncratic returns. The active-return table reconciles active return versus
+SPY with style, sector, industry, idiosyncratic, and total active rows; it does
+not show a separate universe-return leg. `% Active` is contribution divided by
+active return, so it can exceed 100% when positive and negative drivers offset.
+`TE Share` is the same factor's contribution to tracking error from the ex-ante
+risk model.
 
 ## Model Quality
 
