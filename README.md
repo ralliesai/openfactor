@@ -85,24 +85,23 @@ that works in **active (tracking-error) space** against the cap-weighted univers
 benchmark and leads with the decision numbers:
 
 - **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
-  beta to the benchmark, and the idiosyncratic share of tracking error.
+  beta to the benchmark, and the specific-risk share of tracking error.
 - **Portfolio risk** — the current absolute risk decomposition: common factor,
-  market, style, sector, industry, idiosyncratic, and total risk.
+  market, style, sector, industry, specific, and total risk.
 - **Active risk** — every factor's active exposure and its **% of the
   tracking-error budget**, sorted, with annualized contribution-to-tracking-error
   shown next to the share. Diversifying factors (those that *reduce* tracking
   error through covariance) are shown in green.
-- **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
+- **Specific risk by name** — which holdings drive stock-specific risk,
   with top-name concentration and the effective number of names.
-- **Active return attribution** — market factor + active return = portfolio
+- **Active return attribution** — benchmark return + active return = portfolio
   return over 1-day (default) / 1-week (toggle with the buttons). The panel has
-  two separate tables: **Active return reconciliation** for market, factor
-  blocks, idiosyncratic residual, active return, and portfolio return; and
-  **Top factor contributors** for the ranked factor details with return
-  contribution, `% Active`, and `% TE` side by side. 1-day is your book's actual
-  day; 1-week is badged as a current-weights backtest. Longer real attribution
-  comes from an accumulated `--track` history, not from running today's weights
-  back.
+  two separate tables: **Active return reconciliation** for style, sector,
+  industry, specific return, and total active return; and **Top active return
+  contributors** for ranked factor details with contribution, `% Active`, and
+  `TE Share` side by side. 1-day is your book's actual day; 1-week is badged as
+  a current-weights backtest. Longer real attribution comes from an accumulated
+  `--track` history, not from running today's weights back.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
@@ -520,18 +519,19 @@ so it ships with the model and needs no index license.
 
 Active exposures are the portfolio's exposures minus the benchmark's
 (`active = portfolio − benchmark`), and the same factor covariance and
-idiosyncratic risk produce active factor risk, active idiosyncratic risk, and
-total **tracking error**. Because style exposures are cap-weighted standardized,
+specific risk produce active factor risk, active specific risk, and total
+**tracking error**. Because style exposures are cap-weighted standardized,
 the benchmark sits near zero on every style factor: active style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
 carry the real benchmark-relative bets.
 
 Return attribution uses the same model factors: lagged exposures times realized
-factor returns, plus idiosyncratic residual returns. The market factor is shown
-as the base model-market return; style, sector, industry, and idiosyncratic rows
-reconcile active return. `% Active` is contribution divided by active return, so
-it can exceed 100% when positive and negative drivers offset. `% TE` is the same
-factor's contribution to tracking error from the ex-ante risk model.
+factor returns, plus specific returns. The headline shows benchmark return plus
+active return equals portfolio return; the table below reconciles active return
+through style, sector, industry, and specific contribution rows. `% Active` is
+contribution divided by active return, so it can exceed 100% when positive and
+negative drivers offset. `TE Share` is the same factor's contribution to
+tracking error from the ex-ante risk model.
 
 ## Model Quality
 
