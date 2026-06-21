@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from importlib import resources
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
@@ -42,7 +43,7 @@ class ReportChat:
 
     async def answer_async(self, question, history=None):
         """Answer one PM question from async Textual or script code."""
-        from agents import Agent, CodeInterpreterTool, ModelSettings, Runner, set_default_openai_key
+        from agents import Agent, CodeInterpreterTool, ModelSettings, Runner, WebSearchTool, set_default_openai_key
         from openai.types.shared.reasoning import Reasoning
 
         set_default_openai_key(self.api_key)
@@ -50,7 +51,10 @@ class ReportChat:
         agent = Agent(
             name="OpenFactor PM report analyst",
             model=self.model,
-            tools=[CodeInterpreterTool(code_interpreter_config(file_ids))],
+            tools=[
+                CodeInterpreterTool(code_interpreter_config(file_ids)),
+                WebSearchTool(user_location={"type": "approximate", "country": "US"}),
+            ],
             model_settings=ModelSettings(
                 tool_choice="auto",
                 reasoning=Reasoning(effort="medium"),
@@ -149,35 +153,24 @@ def recent_history(history):
 def report_chat_instructions(files=None):
     """Return the product contract for the PM report chat."""
     file_clause = (
-        "Use Code Interpreter and the attached report/data files for calculations. "
+        "Use Code Interpreter and the attached report/data files for calculations."
         if files else
-        "Use Code Interpreter for arithmetic, hedge sizing, and reconciliation checks. "
+        "Use Code Interpreter for arithmetic, hedge sizing, and reconciliation checks."
     )
     source_clause = (
         "The report and attached files are the source of truth; do not assume hidden "
         if files else
         "The report is the source of truth; do not assume hidden "
     )
-    return (
-        "You are an institutional PM-facing OpenFactor analyst. Use only the "
-        "provided report context and JSON. Be direct, numerical, and clear "
-        "about assumptions. The report is the current portfolio report, not a backtest. "
-        "Format answers as concise Markdown for a narrow terminal sidebar: short "
-        "paragraphs and bullets, no wide tables unless the PM explicitly asks. "
-        f"{file_clause}"
-        f"{source_clause}"
-        "bucket files or unpublished data. "
-        "If the PM asks for a beta-neutral hedge and gives no instrument, assume "
-        "a SPY overlay and state the notional as a signed weight on a $1 gross "
-        "book when portfolio notional is not supplied. If the PM asks for a new "
-        "stock-only portfolio, only construct it when the report contains enough "
-        "per-name exposure data; otherwise say the report is insufficient "
-        "and explain the missing fields. Explain what remains after hedges "
-        "instead of implying risk is gone. Use idiosyncratic for residual/name-level risk and return. "
-        "Avoid the legacy S-term formed by 'spec' + 'ific'; use idiosyncratic, "
-        "name-level, or trade ticket instead. Do not invent data that is not in "
-        "the report."
+    return prompt_text("report_chat.txt").format(
+        file_clause=file_clause,
+        source_clause=source_clause,
     )
+
+
+def prompt_text(name):
+    """Return one packaged LLM prompt."""
+    return resources.files("openfactor.llm.prompts").joinpath(name).read_text()
 
 
 def report_payload(report, files=None):
