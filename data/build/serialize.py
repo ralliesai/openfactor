@@ -1,4 +1,5 @@
 from io import StringIO
+import gzip
 import json
 
 import numpy as np
@@ -70,7 +71,7 @@ def snapshot_csvs(snapshot):
     Example:
         snapshot_csvs(snapshot) includes the wide exposures.csv.
     """
-    return [
+    files = [
         (SNAPSHOT_FILES["exposures"], spreadsheet_csv(wide_exposures(snapshot.exposures))),
         (SNAPSHOT_FILES["exposures_detail"], spreadsheet_csv(detail_exposures(snapshot.exposures))),
         (SNAPSHOT_FILES["factor_returns"], spreadsheet_csv(sorted_columns(snapshot.factor_returns), True, "date")),
@@ -82,6 +83,20 @@ def snapshot_csvs(snapshot):
         (SNAPSHOT_FILES["specific_risk"], spreadsheet_csv(sort_tickers(snapshot.specific_risk))),
         (SNAPSHOT_FILES["universe"], spreadsheet_csv(sort_tickers(snapshot.universe))),
     ]
+    return files
+
+
+def panel_gzip(snapshot):
+    """Return the gzipped exposure-history file, or None when absent.
+
+    Example:
+        panel_gzip(snapshot) compresses the multi-day exposure panel for upload.
+    """
+    panel = getattr(snapshot, "exposures_panel", None)
+    if panel is None or panel.empty:
+        return None
+    text = spreadsheet_csv(detail_exposures(panel))
+    return SNAPSHOT_FILES["exposures_panel"], gzip.compress(text.encode("utf-8"))
 
 
 def wide_exposures(exposures):
@@ -134,7 +149,7 @@ def detail_exposures(exposures):
     for column in columns:
         if column not in frame:
             frame[column] = np.nan
-    return frame[columns].sort_values(["ticker", "factor"]).reset_index(drop=True)
+    return frame[columns].sort_values(["as_of_date", "ticker", "factor"]).reset_index(drop=True)
 
 
 def sorted_columns(frame):

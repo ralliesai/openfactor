@@ -18,6 +18,7 @@ from data.build.serialize import (
     fundamentals_audit_file,
     fundamentals_file,
     json_text,
+    panel_gzip,
     snapshot_csvs,
     spreadsheet_csv,
 )
@@ -162,13 +163,15 @@ class DatasetBuilder:
             exposures["factor"].nunique(),
         )
         LOGGER.info("estimating factor returns window=%s", RISK_WINDOW)
-        factor_returns, residuals = factor_model_history(
+        factor_returns, residuals, panel = factor_model_history(
             matrix,
             exposures,
             window=RISK_WINDOW,
             reference_history=fundamentals,
             progress_label="factor returns",
+            collect_panel=True,
         )
+        exposures_panel = exposure_panel(panel, exposures)
         LOGGER.info(
             "factor returns ready rows=%s factors=%s residual_rows=%s",
             len(factor_returns),
@@ -186,6 +189,7 @@ class DatasetBuilder:
             specific_risk=specific_risk_from_residuals(residuals),
             universe=self.universe_frame(matrix.tickers, matrix.dates[-1]),
             metadata=self.metadata(matrix, prices, factor_returns, metadata),
+            exposures_panel=exposures_panel,
         )
         LOGGER.info(
             "snapshot ready as_of_date=%s tickers=%s factors=%s",
@@ -367,6 +371,19 @@ class DatasetBuilder:
         return data
 
 
+def exposure_panel(panel, current):
+    """Return per-date exposures, the rolling history plus today's snapshot.
+
+    Example:
+        the 252-day rolling panel and the current-date exposures, one block per date.
+    """
+    frames = [frame for frame in (panel, current) if frame is not None and not frame.empty]
+    if not frames:
+        return pd.DataFrame()
+    combined = pd.concat(frames, ignore_index=True)
+    return combined.drop_duplicates(["as_of_date", "ticker", "factor"], keep="last")
+
+
 def price_start_date(as_of_date):
     """Return the price start date with a small lookback buffer.
 
@@ -432,6 +449,10 @@ def upload_snapshot_files(r2, bucket, prefix, snapshot):
     """
     for filename, text in snapshot_csvs(snapshot):
         r2.upload_text(text, bucket, f"{prefix}/{filename}", "text/csv; charset=utf-8")
+    panel = panel_gzip(snapshot)
+    if panel:
+        filename, data = panel
+        r2.upload_bytes(data, bucket, f"{prefix}/{filename}", "application/gzip")
     r2.upload_text(
         json_text(snapshot.metadata),
         bucket,

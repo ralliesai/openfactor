@@ -12,6 +12,7 @@ PUBLIC_BASE_URL = "https://openfactor-data.rallies.ai"
 SNAPSHOT_FILES = {
     "exposures": "exposures.csv",
     "exposures_detail": "details/exposures_long.csv",
+    "exposures_panel": "details/exposures_panel.csv.gz",
     "factor_returns": "factor_returns.csv",
     "residual_returns": "residual_returns.csv",
     "factor_covariance": "factor_covariance.csv",
@@ -38,9 +39,10 @@ class Snapshot:
     specific_risk: pd.DataFrame
     universe: pd.DataFrame
     metadata: dict
+    exposures_panel: pd.DataFrame = None
 
 
-def load_snapshot(universe, as_of_date="latest"):
+def load_snapshot(universe, as_of_date="latest", include_exposures_panel=False):
     """Load a public OpenFactor snapshot.
 
     Example:
@@ -58,10 +60,10 @@ def load_snapshot(universe, as_of_date="latest"):
     else:
         prefix = f"{PUBLIC_BASE_URL}/factors/{universe}/date={as_of_date}"
 
-    return load_snapshot_url(prefix, as_of_date, universe, cache_bust)
+    return load_snapshot_url(prefix, as_of_date, universe, cache_bust, include_exposures_panel)
 
 
-def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None):
+def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None, include_exposures_panel=False):
     """Load a snapshot from public bucket URLs.
 
     Example:
@@ -85,6 +87,21 @@ def load_snapshot_url(prefix, as_of_date, universe, cache_bust=None):
         specific_risk=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['specific_risk']}", cache_bust)),
         universe=read_csv(with_query(f"{prefix}/{SNAPSHOT_FILES['universe']}", cache_bust)),
         metadata=metadata,
+        exposures_panel=load_exposures_panel(prefix, cache_bust, include_exposures_panel),
+    )
+
+
+def load_exposures_panel(prefix, cache_bust, include):
+    """Read the large exposure history only when a caller needs attribution.
+
+    Example:
+        include=False leaves regular snapshot loads on the small current tables.
+    """
+    if not include:
+        return None
+    return read_csv_optional(
+        with_query(f"{prefix}/{SNAPSHOT_FILES['exposures_panel']}", cache_bust),
+        compression="gzip",
     )
 
 
@@ -111,6 +128,18 @@ def read_csv(path, **kwargs):
         return pd.read_csv(BytesIO(read_url(path)), **kwargs)
     except urllib.error.HTTPError as error:
         raise FileNotFoundError(f"OpenFactor snapshot file is unavailable: {path}") from error
+
+
+def read_csv_optional(path, **kwargs):
+    """Read one snapshot CSV, returning None when it is not published.
+
+    Example:
+        read_csv_optional(".../exposures_panel.csv") is None on older snapshots.
+    """
+    try:
+        return read_csv(path, **kwargs)
+    except FileNotFoundError:
+        return None
 
 
 def read_json(path):

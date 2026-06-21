@@ -36,6 +36,7 @@ The model package loads:
 | `exposures` | Ticker-level factor exposures |
 | `factor_returns` | Recent realized factor returns |
 | `residual_returns` | Recent per-stock residual returns after common factors |
+| `exposures_panel` | Per-date exposure history for return attribution (loaded on demand) |
 | `factor_covariance` | Annualized factor covariance matrix |
 | `specific_risk` | Annualized stock-specific residual risk |
 | `metadata` | Universe name, model version, and model metadata |
@@ -80,10 +81,11 @@ NVDA,0.30
 ```
 
 The CLI prints a consolidated risk report: a portfolio-vs-active **Risk Summary**
-(total, common-factor, specific, and tracking error) and a single nested
-**Factor Risk Decomposition** (Common Factor → Market, Style, Industry → Specific
-→ Total) with exposures, active exposures, factor volatility, and percent of
-risk. Missing holdings and any discovered semantic factors print in the footer.
+(total, common-factor, specific, and tracking error), a single nested **Factor
+Risk Decomposition** (Common Factor → Market, Style, Industry → Specific →
+Total), and a **Return Attribution** table for 1-day, 1-month, and 1-quarter
+returns. Pass `--no-attribution` to skip return attribution. Missing holdings and
+any discovered semantic factors print in the footer.
 
 By default, OpenFactor loads the latest published model. For reproducible
 historical reports, pass a dated snapshot with `as_of_date` in Python or
@@ -553,6 +555,7 @@ The public model is stored as inspectable CSV and JSON files:
 ```text
 exposures.csv
 details/exposures_long.csv
+details/exposures_panel.csv.gz
 factor_returns.csv
 residual_returns.csv
 factor_covariance.csv
@@ -569,6 +572,7 @@ Current public files:
 | Metadata | [metadata.json](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/metadata.json) |
 | Exposures | [exposures.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/exposures.csv) |
 | Long exposures | [details/exposures_long.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/details/exposures_long.csv) |
+| Exposure panel (gzip) | [details/exposures_panel.csv.gz](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/details/exposures_panel.csv.gz) |
 | Factor returns | [factor_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_returns.csv) |
 | Residual returns | [residual_returns.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/residual_returns.csv) |
 | Factor covariance | [factor_covariance.csv](https://openfactor-data.rallies.ai/factors/openfactor-us1000/latest/factor_covariance.csv) |

@@ -3,9 +3,10 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from openfactor.console import console, print_risk_table
+from openfactor.console import console, print_attribution_table, print_risk_table
 from openfactor.io.snapshot import load_snapshot
 from openfactor.llm.cache import DEFAULT_SEMANTIC_CACHE
+from openfactor.portfolio.attribution import return_attribution
 from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition, semantic_rows
 
@@ -19,7 +20,7 @@ def main():
     args = parse_args()
     try:
         portfolio = load_portfolio(args.portfolio)
-        snapshot = load_snapshot(args.universe, args.snapshot)
+        snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=args.attribution)
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
 
@@ -43,6 +44,12 @@ def main():
         f"as of {snapshot.as_of_date} · {len(snapshot.universe)} tickers"
     )
     print_risk_table(rows)
+    if args.attribution:
+        attribution = return_attribution(portfolio, snapshot)
+        if attribution:
+            print_attribution_table(attribution)
+        else:
+            console.print("[dim]return attribution needs an exposures panel; this snapshot has none[/dim]")
     missing = missing_holdings(portfolio, snapshot.universe)["ticker"].tolist()
     if missing:
         console.print(f"[dim]missing holdings (not in universe): {', '.join(missing)}[/dim]")
@@ -58,6 +65,10 @@ def parse_args():
     parser.add_argument("--universe", required=True)
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
+    attribution = parser.add_mutually_exclusive_group()
+    attribution.add_argument("--attribution", dest="attribution", action="store_true", help="Show return attribution table.")
+    attribution.add_argument("--no-attribution", dest="attribution", action="store_false", help="Skip return attribution table.")
+    parser.set_defaults(attribution=True)
     parser.add_argument("--semantic-discovery", action="store_true")
     parser.add_argument("--semantic-threshold", type=float, default=0.10)
     parser.add_argument("--semantic-window", type=int, default=63)

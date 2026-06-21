@@ -99,6 +99,37 @@ def print_risk_table(rows):
     console.print(table)
 
 
+def print_attribution_table(rows):
+    """Print the return attribution report as one nested table.
+
+    Example:
+        common-factor and specific contributions across 1-day to 1-quarter.
+    """
+    table = Table(title="Return Attribution", title_style="bold cyan", title_justify="left", header_style="bold magenta")
+    table.add_column("Factor")
+    for name in ["1 Day", "1 Month", "1 Quarter"]:
+        table.add_column(name, justify="right")
+    styles = {"section": "bold", "group": "bold cyan", "total": "bold"}
+    for row in rows:
+        if row["kind"] == "total":
+            table.add_section()
+        cells = [row["label"], *[signed_pct(value) for value in row["values"]]]
+        table.add_row(*cells, style=styles.get(row["kind"]))
+    console.print(table)
+
+
+def signed_pct(value):
+    """Return a signed percent string, red when negative.
+
+    Example:
+        signed_pct(-0.012) returns red "-1.2%"; signed_pct(0.012) returns "+1.2%".
+    """
+    if value is None or pd.isna(value):
+        return "[dim]—[/dim]"
+    text = f"{value * 100:+.2f}%"
+    return f"[red]{text}[/red]" if value < 0 else text
+
+
 def pct(value):
     """Return a percent string or dash.
 

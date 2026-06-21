@@ -26,6 +26,7 @@ DEFAULT_LIMIT = 1000
 PUBLIC_FILES = [
     "exposures.csv",
     "details/exposures_long.csv",
+    "details/exposures_panel.csv.gz",
     "factor_returns.csv",
     "residual_returns.csv",
     "factor_covariance.csv",

@@ -275,12 +275,14 @@ def factor_model_history(
     reference_history=None,
     reference_factors=None,
     progress_label=None,
+    collect_panel=False,
 ):
     """Estimate daily factor returns and stock residuals.
 
     Example:
         factor_model_history(matrix, exposures, window=252)
         returns factor_return_rows and residual_return_rows.
+        collect_panel=True also returns the per-date exposure panel.
     """
     price_factors = price_factors or default_price_factors()
     reference_factors = reference_factors or default_reference_factors()
@@ -293,6 +295,7 @@ def factor_model_history(
 
     factor_rows = []
     residual_rows = []
+    panel_frames = []
     rows = range(start, len(matrix.returns))
     if progress_label:
         rows = tqdm(rows, desc=progress_label, unit="day", dynamic_ncols=True)
@@ -306,6 +309,8 @@ def factor_model_history(
             reference_history,
             reference_factors,
         )
+        if collect_panel:
+            panel_frames.append(daily_exposures.assign(as_of_date=str(matrix.dates[row])))
         x_frame = common_exposure_matrix(
             daily_exposures,
             matrix.tickers,
@@ -320,7 +325,9 @@ def factor_model_history(
         factor_rows.append(factors)
         residual_rows.append(residuals.reindex(matrix.tickers))
 
-    return (
-        pd.DataFrame(factor_rows, index=matrix.dates[1:][start:]),
-        pd.DataFrame(residual_rows, index=matrix.dates[1:][start:]),
-    )
+    factor_returns = pd.DataFrame(factor_rows, index=matrix.dates[1:][start:])
+    residuals = pd.DataFrame(residual_rows, index=matrix.dates[1:][start:])
+    if collect_panel:
+        panel = pd.concat(panel_frames, ignore_index=True) if panel_frames else pd.DataFrame()
+        return factor_returns, residuals, panel
+    return factor_returns, residuals

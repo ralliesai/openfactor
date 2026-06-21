@@ -40,6 +40,15 @@ class R2Client:
         """
         return self.request("PUT", bucket, key, text.encode("utf-8"), content_type)
 
+    def upload_bytes(self, data, bucket, key, content_type="application/octet-stream"):
+        """Upload one binary object.
+
+        Example:
+            upload_bytes(gzipped, "openfactor-public", "panel.csv.gz", "application/gzip")
+            writes a compressed object.
+        """
+        return self.request("PUT", bucket, key, data, content_type)
+
     def read_text(self, bucket, key):
         """Read one private R2 text object with signed credentials.
 
