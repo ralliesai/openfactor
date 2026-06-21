@@ -152,11 +152,12 @@ class OpenFactorApp(App):
         ("c", "collapse_all", "Collapse all"),
     ]
 
-    def __init__(self, report):
+    def __init__(self, report, snapshot=None):
         super().__init__()
         self.report = report
+        self.snapshot = snapshot
         self.horizon = 0  # default to 1 Day — your book's actual return
-        self.chat = ReportChat.from_env(report)
+        self.chat = ReportChat.from_env(report, snapshot=snapshot)
         self.chat_history = []
         self.chat_transcript = ""
 
@@ -217,6 +218,13 @@ class OpenFactorApp(App):
         self.populate_returns()
         if self.chat:
             await self.append_chat("OpenFactor", "Ask about this report, beta hedges, tracking error, or attribution.")
+
+    async def _on_exit_app(self):
+        try:
+            if self.chat:
+                self.chat.close()
+        finally:
+            await super()._on_exit_app()
 
     # ---- headline -------------------------------------------------------
     def header_line(self):

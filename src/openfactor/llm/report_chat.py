@@ -1,28 +1,37 @@
 import asyncio
 import json
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Thread
 
 import pandas as pd
 
+from openfactor.llm.report_bundle import file_previews, metric_glossary, write_report_bundle
+
 
 DEFAULT_REPORT_CHAT_MODEL = "gpt-5.5"
-DEFAULT_REPORT_CHAT_TURNS = 8
+DEFAULT_REPORT_CHAT_TURNS = 50
 
 
 class ReportChat:
     """PM-facing chat over one rendered report."""
 
-    def __init__(self, report, model=None, api_key=None, timeout=None):
+    def __init__(self, report, snapshot=None, model=None, api_key=None, timeout=None):
         self.report = report
+        self.snapshot = snapshot
         self.model = model or os.getenv("OPENFACTOR_REPORT_CHAT_MODEL", DEFAULT_REPORT_CHAT_MODEL)
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.timeout = float(timeout or os.getenv("OPENFACTOR_REPORT_CHAT_TIMEOUT", "90"))
+        self.client = None
+        self.local_bundle = None
+        self.files = []
+        self.file_ids = []
 
     @classmethod
-    def from_env(cls, report):
+    def from_env(cls, report, snapshot=None):
         """Return a chat client only when OPENAI_API_KEY is exported."""
-        return cls(report) if report_chat_enabled() else None
+        return cls(report, snapshot=snapshot) if report_chat_enabled() else None
 
     def answer(self, question, history=None):
         """Answer one PM question with an Agent SDK code-interpreter agent."""
@@ -37,27 +46,70 @@ class ReportChat:
         from openai.types.shared.reasoning import Reasoning
 
         set_default_openai_key(self.api_key)
+        file_ids = await asyncio.to_thread(self.ensure_files_uploaded)
         agent = Agent(
             name="OpenFactor PM report analyst",
             model=self.model,
-            tools=[CodeInterpreterTool(code_interpreter_config())],
+            tools=[CodeInterpreterTool(code_interpreter_config(file_ids))],
             model_settings=ModelSettings(
                 tool_choice="auto",
-                max_tokens=int(os.getenv("OPENFACTOR_REPORT_CHAT_MAX_TOKENS", "1800")),
                 reasoning=Reasoning(effort="medium"),
                 verbosity="medium",
             ),
-            instructions=report_chat_instructions(),
+            instructions=report_chat_instructions(self.files),
         )
         result = await asyncio.wait_for(
             Runner.run(
                 agent,
-                report_chat_input(self.report, question, history),
+                report_chat_input(self.report, question, history, self.files),
                 max_turns=int(os.getenv("OPENFACTOR_REPORT_CHAT_MAX_TURNS", DEFAULT_REPORT_CHAT_TURNS)),
             ),
             timeout=self.timeout,
         )
         return str(result.final_output).strip()
+
+    def ensure_files_uploaded(self):
+        """Write, upload, and retain Code Interpreter files for this report."""
+        if self.file_ids:
+            return self.file_ids
+        if self.snapshot is None:
+            return []
+
+        try:
+            self.local_bundle = TemporaryDirectory(prefix="openfactor-report-chat-")
+            directory = Path(self.local_bundle.name)
+            context = report_context(self.report)
+            report_json = full_report_json(self.report)
+            self.files = write_report_bundle(directory, self.snapshot, self.report, context, report_json)
+            self.file_ids = upload_files(self.openai_client(), self.files)
+            return self.file_ids
+        except Exception:
+            self.files = []
+            self.file_ids = []
+            if self.local_bundle is not None:
+                self.local_bundle.cleanup()
+                self.local_bundle = None
+            raise
+
+    def openai_client(self):
+        """Return the OpenAI client used for file upload and cleanup."""
+        if self.client is None:
+            from openai import OpenAI
+
+            self.client = OpenAI(api_key=self.api_key, timeout=self.timeout)
+        return self.client
+
+    def close(self):
+        """Delete uploaded OpenAI files and remove the local temporary bundle."""
+        try:
+            if self.client is not None and self.file_ids:
+                delete_files(self.client, self.file_ids)
+        finally:
+            self.file_ids = []
+            self.files = []
+            if self.local_bundle is not None:
+                self.local_bundle.cleanup()
+                self.local_bundle = None
 
 
 def report_chat_enabled():
@@ -65,14 +117,17 @@ def report_chat_enabled():
     return bool(os.getenv("OPENAI_API_KEY"))
 
 
-def code_interpreter_config():
+def code_interpreter_config(file_ids):
     """Return an automatic Code Interpreter container config."""
-    return {"type": "code_interpreter", "container": {"type": "auto"}}
+    container = {"type": "auto"}
+    if file_ids:
+        container["file_ids"] = file_ids
+    return {"type": "code_interpreter", "container": container}
 
 
-def report_chat_input(report, question, history=None):
+def report_chat_input(report, question, history=None, files=None):
     """Return one report-grounded PM question for the Agent SDK runner."""
-    parts = [report_payload(report)]
+    parts = [report_payload(report, files)]
     history_text = recent_history(history)
     if history_text:
         parts.append(f"Recent chat:\n{history_text}")
@@ -91,16 +146,26 @@ def recent_history(history):
     return "\n".join(lines)
 
 
-def report_chat_instructions():
+def report_chat_instructions(files=None):
     """Return the product contract for the PM report chat."""
+    file_clause = (
+        "Use Code Interpreter and the attached report/data files for calculations. "
+        if files else
+        "Use Code Interpreter for arithmetic, hedge sizing, and reconciliation checks. "
+    )
+    source_clause = (
+        "The report and attached files are the source of truth; do not assume hidden "
+        if files else
+        "The report is the source of truth; do not assume hidden "
+    )
     return (
         "You are an institutional PM-facing OpenFactor analyst. Use only the "
         "provided report context and JSON. Be direct, numerical, and clear "
         "about assumptions. The report is the current portfolio report, not a backtest. "
         "Format answers as concise Markdown for a narrow terminal sidebar: short "
         "paragraphs and bullets, no wide tables unless the PM explicitly asks. "
-        "Use Code Interpreter for arithmetic, hedge sizing, and reconciliation "
-        "checks. The report is the source of truth; do not assume hidden "
+        f"{file_clause}"
+        f"{source_clause}"
         "bucket files or unpublished data. "
         "If the PM asks for a beta-neutral hedge and gives no instrument, assume "
         "a SPY overlay and state the notional as a signed weight on a $1 gross "
@@ -115,9 +180,9 @@ def report_chat_instructions():
     )
 
 
-def report_payload(report):
+def report_payload(report, files=None):
     """Return the compact and complete report context sent to the model."""
-    return (
+    payload = (
         "Rendered report context:\n"
         f"{report_context(report)}\n\n"
         "Complete report JSON:\n"
@@ -125,6 +190,52 @@ def report_payload(report):
         f"{full_report_json(report)}\n"
         "```"
     )
+    if files:
+        payload += (
+            "\n\nAttached files:\n"
+            f"{attached_files(files)}\n\n"
+            "Data glossary:\n"
+            f"{glossary_text(files)}\n\n"
+            "File headers and first rows:\n"
+            f"{file_previews(files)}"
+        )
+    return payload
+
+
+def upload_files(client, files):
+    """Upload report files for Code Interpreter and return OpenAI file IDs."""
+    ids = []
+    try:
+        for path in files:
+            with path.open("rb") as handle:
+                ids.append(client.files.create(file=handle, purpose="assistants").id)
+        return ids
+    except Exception:
+        if ids:
+            delete_files(client, ids)
+        raise
+
+
+def delete_files(client, file_ids):
+    """Delete OpenAI files created for this report chat."""
+    errors = []
+    for file_id in file_ids:
+        try:
+            client.files.delete(file_id)
+        except Exception as error:
+            errors.append(f"{file_id}: {error}")
+    if errors:
+        raise RuntimeError("failed to delete OpenAI report files: " + "; ".join(errors))
+
+
+def attached_files(files):
+    """Return a markdown list of attached file names."""
+    return "\n".join(f"- {path.name}" for path in files)
+
+
+def glossary_text(files):
+    """Return the metric and file glossary for the analyst prompt."""
+    return "\n".join(f"- {line}" for line in metric_glossary(files))
 
 
 def report_context(report):

@@ -29,7 +29,7 @@ def main():
         report["track"] = realized_stats(frame)
         report["realized"] = realized_attribution(frame)
         print(f"recorded {report['meta']['as_of_date']} → {args.track} ({report['track']['days']} day(s) stored)")
-    OpenFactorApp(report).run()
+    OpenFactorApp(report, snapshot=snapshot).run()
 
 
 def parse_args():
