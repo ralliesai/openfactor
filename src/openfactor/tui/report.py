@@ -11,8 +11,8 @@ from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition
 
 
-HORIZONS = ["1 Day", "1 Week", "1 Month", "1 Quarter"]
-WINDOWS = [1, 5, 21, 63]
+HORIZONS = ["1 Day", "1 Week"]
+WINDOWS = [1, 5]
 
 
 def tui_report(portfolio, snapshot):
@@ -36,6 +36,7 @@ def tui_report(portfolio, snapshot):
     benchmark_ret = (index["factor"].get("market") if index else None) or blank
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
     return {
+        "today": today_contributions(index),
         "meta": meta(portfolio, snapshot),
         "summary": {
             "total_risk": total["volatility"],
@@ -58,7 +59,28 @@ def tui_report(portfolio, snapshot):
         "horizons": HORIZONS,
         "horizon_dates": horizon_dates(snapshot),
         "track": None,
+        "realized": None,
     }
+
+
+def today_contributions(index):
+    """Return this snapshot's realized 1-day contribution per factor and specific.
+
+    Example:
+        --track stores these so a real holding path can be summed later instead
+        of running today's weights backward.
+    """
+    if not index:
+        return {"factor": {}, "specific": 0.0}
+    return {
+        "factor": {factor: num(values[0]) for factor, values in index["factor"].items()},
+        "specific": num(index["specific"][0]),
+    }
+
+
+def num(value):
+    """Return a finite float, mapping None and NaN to 0.0."""
+    return 0.0 if value is None or value != value else float(value)
 
 
 def horizon_dates(snapshot):

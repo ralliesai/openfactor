@@ -6,7 +6,8 @@ import pandas as pd
 
 TRADING_DAYS = 252
 FIELDS = ["date", "holdings", "portfolio_return", "benchmark_return", "active_return",
-          "tracking_error", "beta", "total_risk", "idio_share_te"]
+          "tracking_error", "beta", "total_risk", "idio_share_te",
+          "factor_contrib", "specific_contrib"]
 
 
 def record_for(report):
@@ -14,9 +15,11 @@ def record_for(report):
 
     Example:
         record_for(report)["active_return"] is the snapshot date's
-        portfolio-minus-benchmark return.
+        portfolio-minus-benchmark return; factor_contrib is that day's
+        per-factor return breakdown, so a real holding path can be summed later.
     """
     summary, meta = report["summary"], report["meta"]
+    today = report.get("today") or {"factor": {}, "specific": None}
     return {
         "date": meta["as_of_date"],
         "holdings": ";".join(f"{h['ticker']}:{h['weight']:.4f}" for h in meta["holdings"]),
@@ -27,6 +30,8 @@ def record_for(report):
         "beta": summary["beta"],
         "total_risk": summary["total_risk"],
         "idio_share_te": summary["specific_share_te"],
+        "factor_contrib": ";".join(f"{f}:{v:.6f}" for f, v in today["factor"].items()),
+        "specific_contrib": today["specific"],
     }
 
 
@@ -66,3 +71,49 @@ def realized_stats(frame):
     if days >= 2 and active.std(ddof=1) > 0:
         stats["ir"] = float(active.mean() / active.std(ddof=1) * np.sqrt(TRADING_DAYS))
     return stats
+
+
+def parse_contrib(text):
+    """Return a {factor: value} map from a serialized contribution string."""
+    out = {}
+    if not isinstance(text, str):
+        return out
+    for part in text.split(";"):
+        factor, sep, value = part.rpartition(":")
+        if sep:
+            try:
+                out[factor] = float(value)
+            except ValueError:
+                continue
+    return out
+
+
+def realized_attribution(frame):
+    """Return multi-period attribution summed over the real daily holdings.
+
+    Example:
+        each stored day contributes its own factor breakdown, so the total is
+        the honest "what drove the book" — not today's weights run backward.
+    """
+    if "factor_contrib" not in frame.columns:
+        return None
+    rows = frame[frame["factor_contrib"].apply(lambda t: bool(parse_contrib(t)))]
+    if rows.empty:
+        return None
+    factor = {}
+    for text in rows["factor_contrib"]:
+        for name, value in parse_contrib(text).items():
+            factor[name] = factor.get(name, 0.0) + value
+    specific = float(pd.to_numeric(rows["specific_contrib"], errors="coerce").fillna(0.0).sum())
+    market = factor.pop("market", 0.0)
+    active = sum(factor.values()) + specific
+    dates = sorted(rows["date"].astype(str))
+    return {
+        "days": int(len(rows)),
+        "date_range": dates[-1] if len(dates) == 1 else f"{dates[0]} → {dates[-1]}",
+        "factor": factor,
+        "specific": specific,
+        "benchmark": market,
+        "active": active,
+        "portfolio": market + active,
+    }

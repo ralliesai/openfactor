@@ -23,10 +23,11 @@ def main():
     snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
     report = tui_report(portfolio, snapshot)
     if args.track:
-        from openfactor.tui.track import record_for, realized_stats, update_track
+        from openfactor.tui.track import realized_attribution, realized_stats, record_for, update_track
 
         frame = update_track(args.track, record_for(report))
         report["track"] = realized_stats(frame)
+        report["realized"] = realized_attribution(frame)
         print(f"recorded {report['meta']['as_of_date']} → {args.track} ({report['track']['days']} day(s) stored)")
     OpenFactorTUI(report).run()
 

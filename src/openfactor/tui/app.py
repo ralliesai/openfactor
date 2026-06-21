@@ -66,7 +66,7 @@ class OpenFactorTUI(App):
     def __init__(self, report):
         super().__init__()
         self.report = report
-        self.horizon = len(report["horizons"]) - 1  # default to the longest window
+        self.horizon = 0  # default to 1 Day — your book's actual return
 
     def compose(self) -> ComposeResult:
         active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
@@ -172,6 +172,9 @@ class OpenFactorTUI(App):
             )
 
     def populate_returns(self):
+        if self.horizon == "track":
+            self.populate_realized()
+            return
         h = self.horizon
         r = self.report
         rows = [row for row in r["active_rows"] if row.get("ret") and row["ret"][h] is not None]
@@ -192,6 +195,30 @@ class OpenFactorTUI(App):
             table.add_row(row["label"], row["family"], signed_cell(row["ret"][h]))
         table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", signed_cell(r["specific_ret"][h]))
         table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(r["active_ret"][h], bold=True))
+
+    def populate_realized(self):
+        """Render attribution summed over the real daily holdings from --track."""
+        r = self.report
+        real = r["realized"]
+        lookup = {row["factor"]: (row["label"], row["family"]) for row in r["active_rows"]}
+        items = sorted(real["factor"].items(), key=lambda kv: -abs(kv[1]))
+        tail = max(0, len(items) - TOP_N)
+        self.query_one("#returns_summary", Static).update(
+            f"[b]Realized · {real['days']} trading day(s)[/] · {real['date_range']}   "
+            "[green]your actual book, summed day by day[/]\n"
+            f"Benchmark {signed(real['benchmark'])}  →  Portfolio {signed(real['portfolio'])}"
+            f"   =   Active (excess) {signed(real['active'])}\n"
+            f"[dim]each day's real holdings — not today's weights run backward; "
+            f"top contributors ({tail} smaller factors folded)[/]"
+        )
+        table = self.query_one("#returns", DataTable)
+        table.clear(columns=True)
+        table.add_columns("Factor", "Family", "Contribution")
+        for factor, value in items[:TOP_N]:
+            label, fam = lookup.get(factor, (factor, "—"))
+            table.add_row(label, fam, signed_cell(value))
+        table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", signed_cell(real["specific"]))
+        table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(real["active"], bold=True))
 
     # ---- text panels ----------------------------------------------------
     def specific_summary(self):
@@ -238,15 +265,24 @@ class OpenFactorTUI(App):
 
     # ---- interaction ----------------------------------------------------
     def horizon_buttons(self):
-        return [Button(h, id=f"h{i}", variant=("primary" if i == self.horizon else "default"))
-                for i, h in enumerate(self.report["horizons"])]
+        buttons = [Button(h, id=f"h{i}", variant=("primary" if i == self.horizon else "default"))
+                   for i, h in enumerate(self.report["horizons"])]
+        realized = self.report.get("realized")
+        if realized:
+            buttons.append(Button(f"Realized · {realized['days']}d", id="htrack",
+                                  variant=("success" if self.horizon == "track" else "default")))
+        return buttons
 
     def on_button_pressed(self, event):
-        if event.button.id and event.button.id.startswith("h"):
-            self.horizon = int(event.button.id[1:])
-            for i in range(len(self.report["horizons"])):
-                self.query_one(f"#h{i}", Button).variant = "primary" if i == self.horizon else "default"
-            self.populate_returns()
+        bid = event.button.id
+        if not bid or not bid.startswith("h"):
+            return
+        self.horizon = "track" if bid == "htrack" else int(bid[1:])
+        for i in range(len(self.report["horizons"])):
+            self.query_one(f"#h{i}", Button).variant = "primary" if i == self.horizon else "default"
+        if self.report.get("realized"):
+            self.query_one("#htrack", Button).variant = "success" if self.horizon == "track" else "default"
+        self.populate_returns()
 
     def action_expand_all(self):
         for widget in self.query(Collapsible):
