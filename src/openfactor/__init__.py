@@ -13,11 +13,13 @@ from openfactor.llm import (
     discover_semantic_factors,
     semantic_factor_members,
 )
+from openfactor.portfolio.model_data import FactorModelData, factor_model_data
 from openfactor.portfolio.report import portfolio_report
 
 __all__ = [
     "DEFAULT_RESIDUAL_THRESHOLD",
     "Factor",
+    "FactorModelData",
     "FactorResult",
     "SemanticCandidate",
     "SemanticDiscoveryResult",
@@ -28,6 +30,7 @@ __all__ = [
     "default_reference_factors",
     "discover_semantic_factors",
     "load_snapshot",
+    "factor_model_data",
     "portfolio_report",
     "semantic_factor_members",
 ]

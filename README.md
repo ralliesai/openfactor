@@ -65,6 +65,32 @@ snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
 ```
 
+### Factor Model Data
+
+OpenFactor also exposes aligned model data for downstream analytics:
+
+```python
+data = of.factor_model_data(snapshot)
+
+data.tickers                    # asset index
+data.exposures                  # assets x factors
+data.factor_covariance          # factors x factors
+data.idiosyncratic_variance     # asset idiosyncratic variance
+data.benchmark_weights          # cap-weighted model benchmark
+data.factor_groups              # factor group labels
+
+data.factor_exposure(weights)
+data.active_factor_exposure(weights)
+data.risk(weights)
+data.tracking_error(weights)
+data.beta(weights)
+data.portfolio_frame(weights)
+```
+
+OpenFactor does not solve portfolios. It supplies exposures, covariance,
+benchmark weights, idiosyncratic variance, and risk helpers that another library
+can use.
+
 ## CLI Usage
 
 ```bash
