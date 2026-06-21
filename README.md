@@ -91,6 +91,31 @@ By default, OpenFactor loads the latest published model. For reproducible
 historical reports, pass a dated snapshot with `as_of_date` in Python or
 `--snapshot` in the CLI.
 
+### Interactive terminal (TUI)
+
+For an institutional-style, decision-oriented view, run the Textual terminal app
+(`pip install 'openfactor[tui]'` for the extra dependency):
+
+```bash
+python3.10 -m openfactor.tui --portfolio portfolio.csv
+```
+
+Unlike the static table, the TUI works in **active (tracking-error) space**
+against the cap-weighted universe benchmark and leads with the decision numbers:
+
+- **Headline cards** — total risk, tracking error, one-day VaR (95%), predicted
+  beta to the benchmark, and the specific share of tracking error.
+- **Active risk** — every factor's active exposure and its **% of the
+  tracking-error budget**, sorted, with the long tail of near-zero factors
+  collapsed (press `e` / `c` or click to expand/collapse). Diversifying factors
+  (those that *reduce* tracking error) are shown in green.
+- **Stock-specific risk by name** — which holdings are the idiosyncratic risk,
+  with top-name concentration and the effective number of names.
+- **Return attribution** — per-factor contribution over 1-day / 1-month /
+  1-quarter (toggle with the buttons), reconciling to the model return.
+- **Tail risk & scenarios** — parametric VaR (95% / 99%, total and active) and
+  predicted beta. Lives in [`tui/`](src/openfactor/tui/).
+
 ## Report Output
 
 `portfolio_report()` returns a dictionary of pandas tables.

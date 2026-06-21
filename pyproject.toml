@@ -25,8 +25,12 @@ data = [
   "requests>=2.31",
   "tqdm>=4.66",
 ]
+tui = [
+  "textual>=8.0",
+]
 [project.scripts]
 openfactor = "openfactor.cli:main"
+openfactor-tui = "openfactor.tui.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

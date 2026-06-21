@@ -1,0 +1,186 @@
+from rich.text import Text
+from textual.app import App, ComposeResult
+from textual.containers import Horizontal, VerticalScroll
+from textual.widgets import Button, Collapsible, DataTable, Footer, Header, Static
+
+
+TOP_N = 8
+
+
+def pct1(value):
+    return "—" if value is None else f"{value * 100:.1f}%"
+
+
+def signed_cell(value, bold=False):
+    """Return a sign-colored percent cell."""
+    if value is None:
+        return Text("—", style="dim")
+    text = Text(f"{value * 100:+.2f}%", style=("green" if value >= 0 else "red"))
+    if bold:
+        text.stylize("bold")
+    return text
+
+
+def expo_cell(value):
+    """Return a signed exposure cell, red when short of the market."""
+    return Text(f"{value:+.2f}", style="" if value >= 0 else "red")
+
+
+def te_cell(value, bold=False):
+    """Return a share-of-tracking-error cell; green when diversifying."""
+    if value is None:
+        return Text("—", style="dim")
+    text = Text(f"{value * 100:+.1f}%", style=("bold" if bold else "") if value >= 0 else "green")
+    return text
+
+
+class OpenFactorTUI(App):
+    """Interactive risk and return terminal for one portfolio."""
+
+    CSS = """
+    .subtitle { color: $text-muted; padding: 0 1; }
+    #cards { height: auto; padding: 1 0; }
+    .card { width: 1fr; height: 5; border: round $primary 40%; padding: 0 1; margin: 0 1 0 0; }
+    .legend { color: $text-muted; padding: 0 1; }
+    Collapsible { margin: 1 0; }
+    DataTable { height: auto; margin: 0 1; }
+    #horizons { height: auto; padding: 0 1 1 1; }
+    Button { margin: 0 1 0 0; min-width: 12; }
+    """
+
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("e", "expand_all", "Expand all"),
+        ("c", "collapse_all", "Collapse all"),
+    ]
+
+    def __init__(self, report):
+        super().__init__()
+        self.report = report
+        self.horizon = len(report["horizons"]) - 1  # default to the longest window
+
+    def compose(self) -> ComposeResult:
+        active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
+        tail = max(0, len(active) - TOP_N)
+        yield Header(show_clock=False)
+        with VerticalScroll():
+            yield Static(self.header_line(), classes="subtitle")
+            yield Horizontal(*self.cards(), id="cards")
+            with Collapsible(title="Active risk — what's eating your tracking-error budget", collapsed=False):
+                yield DataTable(id="active", cursor_type="none", zebra_stripes=True)
+                with Collapsible(title=f"{tail} smaller factors", collapsed=True):
+                    yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
+                yield Static("[dim]green = diversifying (reduces tracking error)[/]", classes="legend")
+            with Collapsible(title="Stock-specific risk — which names are the black box", collapsed=False):
+                yield Static(self.specific_summary(), classes="legend")
+                yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
+            with Collapsible(title="Return attribution", collapsed=False):
+                yield Horizontal(*self.horizon_buttons(), id="horizons")
+                yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
+            with Collapsible(title="Tail risk & scenarios", collapsed=True):
+                yield Static(self.tail_text(), classes="legend")
+        yield Footer()
+
+    def on_mount(self):
+        self.populate_active()
+        self.populate_specific()
+        self.populate_returns()
+
+    # ---- headline -------------------------------------------------------
+    def header_line(self):
+        m = self.report["meta"]
+        line = f"[b]{m['universe']}[/] · as of {m['as_of_date']} · {m['tickers']} tickers · {m['held']} held · benchmark: cap-weighted universe"
+        if m["missing"]:
+            line += f"\n[yellow]dropped (not in universe): {', '.join(m['missing'])}[/]"
+        return line
+
+    def cards(self):
+        s = self.report["summary"]
+        var = s["var"]["95%"]
+        return [
+            card("Total risk", pct1(s["total_risk"]), "annualized volatility"),
+            card("Tracking error", pct1(s["tracking_error"]), "active risk vs benchmark"),
+            card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
+            card("Predicted beta", "—" if s["beta"] is None else f"{s['beta']:.2f}", "to benchmark"),
+            card("Specific risk", pct1(s["specific_share_te"]), "of tracking error"),
+        ]
+
+    # ---- tables ---------------------------------------------------------
+    def populate_active(self):
+        active = sorted(self.report["active_rows"], key=lambda row: -abs(row["te_share"] or 0))
+        self.fill_active(self.query_one("#active", DataTable), active[:TOP_N], specific=True)
+        self.fill_active(self.query_one("#active_tail", DataTable), active[TOP_N:], specific=False)
+
+    def fill_active(self, table, rows, specific):
+        table.add_columns("Factor", "Family", "Active Exp", "% of TE")
+        for row in rows:
+            table.add_row(row["label"], row["family"], expo_cell(row["active_exposure"]), te_cell(row["te_share"]))
+        if specific:
+            table.add_row(Text("Specific (stock-picking)", style="bold"), "", "",
+                          te_cell(self.report["specific_te_share"], bold=True))
+
+    def populate_specific(self):
+        table = self.query_one("#specific", DataTable)
+        table.add_columns("Ticker", "Weight", "Specific vol", "Share of specific")
+        for name in self.report["names"]["names"]:
+            table.add_row(
+                name["ticker"], pct1(name["weight"]),
+                pct1(name["specific_vol"]), te_cell(name["share"]),
+            )
+
+    def populate_returns(self):
+        table = self.query_one("#returns", DataTable)
+        table.clear(columns=True)
+        table.add_columns("Factor", "Family", "Contribution")
+        h = self.horizon
+        rows = [row for row in self.report["active_rows"] if row.get("ret") and row["ret"][h] is not None]
+        rows.sort(key=lambda row: -abs(row["ret"][h]))
+        for row in rows[:TOP_N]:
+            table.add_row(row["label"], row["family"], signed_cell(row["ret"][h]))
+        table.add_row(Text("Specific (stock-picking)", style="bold"), "", signed_cell(self.report["specific_ret"][h]))
+        table.add_row(Text("Total", style="bold"), "", signed_cell(self.report["total_ret"][h], bold=True))
+
+    # ---- text panels ----------------------------------------------------
+    def specific_summary(self):
+        n = self.report["names"]
+        eff = "—" if n["effective_names"] is None else f"{n['effective_names']:.1f}"
+        top = n["names"][0]["ticker"] if n["names"] else "—"
+        return (f"Idiosyncratic risk {pct1(n['total_specific'])} of the book · top name "
+                f"[b]{top}[/] = {pct1(n['top_share'])} · effective names {eff}")
+
+    def tail_text(self):
+        s = self.report["summary"]
+        lines = ["[b]Parametric VaR[/] (normal, one-day)"]
+        for conf, value in s["var"].items():
+            lines.append(f"  {conf}:  total {pct1(value['total_1d'])}   active {pct1(value['active_1d'])}")
+        beta = "—" if s["beta"] is None else f"{s['beta']:.2f}"
+        lines.append(f"[b]Predicted beta[/] to benchmark: {beta}")
+        lines.append("[dim]Historical scenarios (2008, COVID, rates +100bp) need an external scenario set "
+                     "that isn't in the published snapshot, so they're omitted rather than faked. "
+                     "Days-to-liquidate needs volume data the snapshot doesn't carry.[/]")
+        return "\n".join(lines)
+
+    # ---- interaction ----------------------------------------------------
+    def horizon_buttons(self):
+        return [Button(h, id=f"h{i}", variant=("primary" if i == self.horizon else "default"))
+                for i, h in enumerate(self.report["horizons"])]
+
+    def on_button_pressed(self, event):
+        if event.button.id and event.button.id.startswith("h"):
+            self.horizon = int(event.button.id[1:])
+            for i in range(len(self.report["horizons"])):
+                self.query_one(f"#h{i}", Button).variant = "primary" if i == self.horizon else "default"
+            self.populate_returns()
+
+    def action_expand_all(self):
+        for widget in self.query(Collapsible):
+            widget.collapsed = False
+
+    def action_collapse_all(self):
+        for widget in self.query(Collapsible):
+            widget.collapsed = True
+
+
+def card(title, value, sub):
+    """Return one headline stat card."""
+    return Static(f"[dim]{title}[/]\n[b]{value}[/]\n[dim]{sub}[/]", classes="card")
