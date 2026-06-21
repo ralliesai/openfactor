@@ -21,6 +21,13 @@ def signed_cell(value, bold=False):
     return text
 
 
+def signed(value):
+    """Return a sign-colored signed-percent markup string."""
+    if value is None:
+        return "[dim]—[/]"
+    return f"[{'green' if value >= 0 else 'red'}]{value * 100:+.2f}%[/]"
+
+
 def expo_cell(value):
     """Return a signed exposure cell, red when short of the market."""
     return Text(f"{value:+.2f}", style="" if value >= 0 else "red")
@@ -75,12 +82,13 @@ class OpenFactorTUI(App):
                         with Collapsible(title=f"{tail} smaller factors", collapsed=True):
                             yield DataTable(id="active_tail", cursor_type="none", zebra_stripes=True)
                         yield Static("[dim]green = diversifying (reduces tracking error)[/]", classes="legend")
-                    with Collapsible(title="Stock-specific risk — which names are the black box", collapsed=False):
+                    with Collapsible(title="Idiosyncratic risk — which names are the black box", collapsed=False):
                         yield Static(self.specific_summary(), classes="legend")
                         yield DataTable(id="specific", cursor_type="none", zebra_stripes=True)
                 with Vertical(classes="col"):
                     with Collapsible(title="Return attribution", collapsed=False):
                         yield Horizontal(*self.horizon_buttons(), id="horizons")
+                        yield Static(id="returns_summary", classes="legend")
                         yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
                     with Collapsible(title="Benchmark", collapsed=True):
                         yield Static(self.benchmark_text(), classes="legend")
@@ -124,7 +132,7 @@ class OpenFactorTUI(App):
             card("Tracking error", pct1(s["tracking_error"]), "active risk vs benchmark"),
             card("1-day VaR (95%)", pct1(var["total_1d"]), f"active {pct1(var['active_1d'])}"),
             card("Predicted beta", "—" if s["beta"] is None else f"{s['beta']:.2f}", "to benchmark"),
-            card("Specific risk", pct1(s["specific_share_te"]), "of tracking error"),
+            card("Idiosyncratic", pct1(s["specific_share_te"]), "of tracking error"),
         ]
 
     # ---- tables ---------------------------------------------------------
@@ -138,12 +146,12 @@ class OpenFactorTUI(App):
         for row in rows:
             table.add_row(row["label"], row["family"], expo_cell(row["active_exposure"]), te_cell(row["te_share"]))
         if specific:
-            table.add_row(Text("Specific (stock-picking)", style="bold"), "", "",
+            table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", "",
                           te_cell(self.report["specific_te_share"], bold=True))
 
     def populate_specific(self):
         table = self.query_one("#specific", DataTable)
-        table.add_columns("Ticker", "Weight", "Specific vol", "Share of specific")
+        table.add_columns("Ticker", "Weight", "Idiosyncratic vol", "Share of idiosyncratic")
         for name in self.report["names"]["names"]:
             table.add_row(
                 name["ticker"], pct1(name["weight"]),
@@ -151,16 +159,24 @@ class OpenFactorTUI(App):
             )
 
     def populate_returns(self):
+        h = self.horizon
+        r = self.report
+        rows = [row for row in r["active_rows"] if row.get("ret") and row["ret"][h] is not None]
+        rows.sort(key=lambda row: -abs(row["ret"][h]))
+        tail = max(0, len(rows) - TOP_N)
+        self.query_one("#returns_summary", Static).update(
+            f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}\n"
+            f"Benchmark {signed(r['benchmark_ret'][h])}  →  Portfolio {signed(r['portfolio_ret'][h])}"
+            f"   =   Active (excess) {signed(r['active_ret'][h])}\n"
+            f"[dim]rows below split the active return (top contributors; {tail} smaller factors folded)[/]"
+        )
         table = self.query_one("#returns", DataTable)
         table.clear(columns=True)
         table.add_columns("Factor", "Family", "Contribution")
-        h = self.horizon
-        rows = [row for row in self.report["active_rows"] if row.get("ret") and row["ret"][h] is not None]
-        rows.sort(key=lambda row: -abs(row["ret"][h]))
         for row in rows[:TOP_N]:
             table.add_row(row["label"], row["family"], signed_cell(row["ret"][h]))
-        table.add_row(Text("Specific (stock-picking)", style="bold"), "", signed_cell(self.report["specific_ret"][h]))
-        table.add_row(Text("Total", style="bold"), "", signed_cell(self.report["total_ret"][h], bold=True))
+        table.add_row(Text("Idiosyncratic (stock-picking)", style="bold"), "", signed_cell(r["specific_ret"][h]))
+        table.add_row(Text("Active (excess)", style="bold"), "", signed_cell(r["active_ret"][h], bold=True))
 
     # ---- text panels ----------------------------------------------------
     def specific_summary(self):

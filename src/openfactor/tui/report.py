@@ -12,6 +12,7 @@ from openfactor.portfolio.summary import risk_decomposition
 
 
 HORIZONS = ["1 Day", "1 Month", "1 Quarter"]
+WINDOWS = [1, 21, 63]
 
 
 def tui_report(portfolio, snapshot):
@@ -30,6 +31,10 @@ def tui_report(portfolio, snapshot):
     attach_returns(active["rows"], index)
     names = specific_by_name(portfolio, snapshot)
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
+    blank = [None, None, None]
+    portfolio_ret = index["total"] if index else blank
+    benchmark_ret = (index["factor"].get("market") if index else None) or blank
+    active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
     return {
         "meta": meta(portfolio, snapshot),
         "summary": {
@@ -40,15 +45,41 @@ def tui_report(portfolio, snapshot):
             "specific_share_te": active["specific_share"],
             "beta": tail["beta"],
             "var": tail["var"],
-            "return": dict(zip(HORIZONS, index["total"] if index else [None, None, None])),
+            "return": dict(zip(HORIZONS, portfolio_ret)),
         },
         "active_rows": active["rows"],
         "specific_te_share": active["specific_share"],
-        "specific_ret": index["specific"] if index else [None, None, None],
-        "total_ret": index["total"] if index else [None, None, None],
+        "specific_ret": index["specific"] if index else blank,
+        "portfolio_ret": portfolio_ret,
+        "benchmark_ret": benchmark_ret,
+        "active_ret": active_ret,
         "names": names,
         "horizons": HORIZONS,
+        "horizon_dates": horizon_dates(snapshot),
     }
+
+
+def horizon_dates(snapshot):
+    """Return a display date or date range for each return horizon.
+
+    Example:
+        1 Day shows the latest date; 1 Quarter shows "start → end".
+    """
+    dates = sorted(str(date) for date in snapshot.factor_returns.index)
+    labels = []
+    for window in WINDOWS:
+        if not dates:
+            labels.append("—")
+        elif window <= 1:
+            labels.append(dates[-1])
+        else:
+            labels.append(f"{dates[max(0, len(dates) - window)]} → {dates[-1]}")
+    return labels
+
+
+def diff(left, right):
+    """Return left - right, or None when either side is missing."""
+    return None if left is None or right is None else left - right
 
 
 def attach_returns(rows, index):
