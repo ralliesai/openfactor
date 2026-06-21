@@ -33,7 +33,7 @@ def tui_report(portfolio, snapshot):
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
     blank = [None] * len(HORIZONS)
     portfolio_ret = index["total"] if index else blank
-    benchmark_ret = (index["factor"].get("market") if index else None) or blank
+    benchmark_ret = index["factor"].get("market") if index and index["factor"].get("market") is not None else blank
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]
     return {
         "today": today_contributions(index),

@@ -106,8 +106,6 @@ def return_label_cell(row):
     text = Text(str(row["label"]))
     if row["kind"] in ("section", "total"):
         text.stylize("bold")
-    elif row["kind"] == "factor" and str(row["label"]).startswith("  "):
-        text.stylize("dim")
     return text
 
 
@@ -166,7 +164,10 @@ class OpenFactorTUI(App):
                     with Collapsible(title="Active return attribution", collapsed=False):
                         yield Horizontal(*self.horizon_buttons(), id="horizons")
                         yield Static(id="returns_summary", classes="legend")
-                        yield DataTable(id="returns", cursor_type="none", zebra_stripes=True)
+                        yield Static("[b]Active return reconciliation[/]", classes="legend")
+                        yield DataTable(id="returns_recon", cursor_type="none", zebra_stripes=True)
+                        yield Static("[b]Top factor contributors[/]", classes="legend")
+                        yield DataTable(id="returns_factors", cursor_type="none", zebra_stripes=True)
                     with Collapsible(title="Benchmark", collapsed=True):
                         yield Static(self.benchmark_text(), classes="legend")
                     with Collapsible(title="Parametric loss & beta", collapsed=True):
@@ -305,45 +306,37 @@ class OpenFactorTUI(App):
             return
         h = self.horizon
         r = self.report
-        rows, tail = self.return_rows(h)
+        recon, factors, tail = self.return_rows(h)
         badge = ("[green]your book's actual day[/]" if h == 0
                  else "[yellow]current-weights backtest — assumes you held today's book the whole window[/]")
         self.query_one("#returns_summary", Static).update(
             f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   {badge}\n"
             f"Market factor {signed(r['benchmark_ret'][h])}  +  Active return {signed(r['active_ret'][h])}"
             f"   =   Portfolio {signed(r['portfolio_ret'][h])}\n"
-            f"[dim]factor blocks reconcile active return; top factors shown below ({tail} smaller factors folded)[/]"
+            f"[dim]factor blocks reconcile active return; ranked factors are separate ({tail} smaller factors folded)[/]"
         )
-        table = self.query_one("#returns", DataTable)
-        table.clear(columns=True)
-        table.add_columns("Source", "Family", "Return", "% Active", "% TE")
-        for row in rows:
-            table.add_row(
-                return_label_cell(row),
-                row["family"],
-                signed_cell(row["return"], bold=row["kind"] == "total"),
-                ratio_cell(row["active_share"], bold=row["kind"] == "total"),
-                te_cell(row["te_share"]),
-            )
+        self.fill_return_recon(self.query_one("#returns_recon", DataTable), recon)
+        self.fill_return_factors(self.query_one("#returns_factors", DataTable), factors)
 
     def return_rows(self, horizon):
         """Return institutional-style active return attribution rows."""
         r = self.report
         active = r["active_ret"][horizon]
-        rows = [
+        recon = [
             return_row("Market factor", "Market", r["benchmark_ret"][horizon], None, None, "section")
         ]
         for name in ["Style", "Sector", "Industry"]:
             value = family_value(r, name, horizon)
             te = family_te_share(r["active_rows"], name)
             if not missing(value) and abs(value) > 1e-9:
-                rows.append(return_row(name, "Factor block", value, share_of(value, active), te, "section"))
+                recon.append(return_row(name, "Factor block", value, share_of(value, active), te, "section"))
 
         factors = [row for row in r["active_rows"] if row.get("ret") and not missing(row["ret"][horizon])]
         factors.sort(key=lambda row: -magnitude(row["ret"][horizon]))
+        top = []
         for row in factors[:TOP_N]:
-            rows.append(return_row(
-                "  " + row["label"],
+            top.append(return_row(
+                row["label"],
                 row["family"],
                 row["ret"][horizon],
                 share_of(row["ret"][horizon], active),
@@ -351,13 +344,38 @@ class OpenFactorTUI(App):
                 "factor",
             ))
 
-        rows += [
+        recon += [
             return_row("Idiosyncratic residual", "Residual", r["specific_ret"][horizon],
                        share_of(r["specific_ret"][horizon], active), r["specific_te_share"], "section"),
-            return_row("Active return", "Total", active, 1.0, None, "total"),
+            return_row("Active return", "Total", active, None if missing(active) else 1.0, None, "total"),
             return_row("Portfolio return", "Total", r["portfolio_ret"][horizon], None, None, "total"),
         ]
-        return rows, max(0, len(factors) - TOP_N)
+        return recon, top, max(0, len(factors) - TOP_N)
+
+    def fill_return_recon(self, table, rows):
+        """Render rows that reconcile market, active, and portfolio return."""
+        table.clear(columns=True)
+        table.add_columns("Source", "Return", "% Active", "% TE")
+        for row in rows:
+            table.add_row(
+                return_label_cell(row),
+                signed_cell(row["return"], bold=row["kind"] == "total"),
+                ratio_cell(row["active_share"], bold=row["kind"] == "total"),
+                te_cell(row["te_share"]),
+            )
+
+    def fill_return_factors(self, table, rows):
+        """Render ranked factor details without implying parent-child hierarchy."""
+        table.clear(columns=True)
+        table.add_columns("Factor", "Family", "Return", "% Active", "% TE")
+        for row in rows:
+            table.add_row(
+                row["label"],
+                row["family"],
+                signed_cell(row["return"]),
+                ratio_cell(row["active_share"]),
+                te_cell(row["te_share"]),
+            )
 
     def populate_realized(self):
         """Render attribution summed over the real daily holdings from --track."""
@@ -372,33 +390,29 @@ class OpenFactorTUI(App):
             f"Market factor {signed(real['benchmark'])}  +  Active return {signed(real['active'])}"
             f"   =   Portfolio {signed(real['portfolio'])}\n"
             f"[dim]each day's real holdings — not today's weights run backward; "
-            f"top contributors ({tail} smaller factors folded)[/]"
+            f"factor blocks reconcile active return; ranked factors are separate "
+            f"({tail} smaller factors folded)[/]"
         )
-        table = self.query_one("#returns", DataTable)
-        table.clear(columns=True)
-        table.add_columns("Source", "Family", "Return", "% Active", "% TE")
-        table.add_row(
-            Text("Market factor", style="bold"),
-            "Market",
-            signed_cell(real["benchmark"]),
-            ratio_cell(None),
-            te_cell(None),
-        )
+        recon = [
+            return_row("Market factor", "Market", real["benchmark"], None, None, "section"),
+        ]
+        for name, value in realized_family_values(real["factor"], lookup).items():
+            te = family_te_share(r["active_rows"], name)
+            if abs(value) > 1e-9:
+                recon.append(return_row(name, "Factor block", value, share_of(value, real["active"]), te, "section"))
+        factors = []
         for factor, value in items[:TOP_N]:
             label, fam = lookup.get(factor, (factor, "—"))
             te = next((row["te_share"] for row in r["active_rows"] if row["factor"] == factor), None)
-            table.add_row("  " + label, fam, signed_cell(value), ratio_cell(share_of(value, real["active"])), te_cell(te))
-        table.add_row(
-            Text("Idiosyncratic residual", style="bold"),
-            "Residual",
-            signed_cell(real["specific"]),
-            ratio_cell(share_of(real["specific"], real["active"])),
-            te_cell(r["specific_te_share"]),
-        )
-        table.add_row(Text("Active return", style="bold"), "Total", signed_cell(real["active"], bold=True),
-                      ratio_cell(1.0, bold=True), te_cell(None))
-        table.add_row(Text("Portfolio return", style="bold"), "Total", signed_cell(real["portfolio"], bold=True),
-                      ratio_cell(None), te_cell(None))
+            factors.append(return_row(label, fam, value, share_of(value, real["active"]), te, "factor"))
+        recon += [
+            return_row("Idiosyncratic residual", "Residual", real["specific"],
+                       share_of(real["specific"], real["active"]), r["specific_te_share"], "section"),
+            return_row("Active return", "Total", real["active"], None if missing(real["active"]) else 1.0, None, "total"),
+            return_row("Portfolio return", "Total", real["portfolio"], None, None, "total"),
+        ]
+        self.fill_return_recon(self.query_one("#returns_recon", DataTable), recon)
+        self.fill_return_factors(self.query_one("#returns_factors", DataTable), factors)
 
     # ---- text panels ----------------------------------------------------
     def risk_summary(self):
@@ -451,7 +465,7 @@ class OpenFactorTUI(App):
             "[1] Ex-ante risk and beta use today's holdings, current exposures, and the model covariance. "
             "They are forecasts, not realized history.",
             "[2] Realized beta appears only with --track history and is computed from stored portfolio "
-            "returns versus stored model-benchmark returns.",
+            "returns versus stored market-factor returns.",
             "[3] Tracking error is active risk: portfolio minus the cap-weighted model benchmark.",
             "[4] TE contribution is variance contribution divided by total tracking error; negative values "
             "are diversifiers in the current covariance matrix.",
@@ -522,6 +536,16 @@ def family_te_share(active_rows, name):
     """Return a factor block's share of tracking error."""
     values = [row["te_share"] for row in active_rows if row["family"] == name and not missing(row["te_share"])]
     return sum(values) if values else None
+
+
+def realized_family_values(factors, lookup):
+    """Return realized factor contributions summed by family."""
+    totals = {"Style": 0.0, "Sector": 0.0, "Industry": 0.0}
+    for factor, value in factors.items():
+        _, family = lookup.get(factor, (factor, None))
+        if family in totals and not missing(value):
+            totals[family] += value
+    return totals
 
 
 def share_of(value, total):

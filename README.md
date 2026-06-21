@@ -95,12 +95,14 @@ benchmark and leads with the decision numbers:
 - **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
 - **Active return attribution** — market factor + active return = portfolio
-  return over 1-day (default) / 1-week (toggle with the buttons). The table
-  reconciles active return by factor block, then shows top factor contributors
-  with contribution, `% Active`, and `% TE` side by side. 1-day is your book's
-  actual day; 1-week is badged as a current-weights backtest. Longer real
-  attribution comes from an accumulated `--track` history, not from running
-  today's weights back.
+  return over 1-day (default) / 1-week (toggle with the buttons). The panel has
+  two separate tables: **Active return reconciliation** for market, factor
+  blocks, idiosyncratic residual, active return, and portfolio return; and
+  **Top factor contributors** for the ranked factor details with return
+  contribution, `% Active`, and `% TE` side by side. 1-day is your book's actual
+  day; 1-week is badged as a current-weights backtest. Longer real attribution
+  comes from an accumulated `--track` history, not from running today's weights
+  back.
 - **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
@@ -123,7 +125,7 @@ hit rate, and cumulative active return (shown once enough days exist). To
 backfill honestly, run past dates (`--snapshot <date>`) with the holdings you
 *actually* held then — not today's weights.
 
-Because each day's factor breakdown is stored, the Return attribution panel gains
+Because each day's factor breakdown is stored, the Active return attribution panel gains
 a green **Realized · N d** button that sums those daily contributions over your
 *real* holding path — the honest "what drove the book" over the window. This is
 the opposite of the 1-week view, which runs today's weights backward and is only
