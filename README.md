@@ -80,12 +80,12 @@ MSFT,0.30
 NVDA,0.30
 ```
 
-The CLI prints a consolidated risk report: a portfolio-vs-active **Risk Summary**
-(total, common-factor, specific, and tracking error), a single nested **Factor
-Risk Decomposition** (Common Factor → Market, Style, Industry → Specific →
-Total), and a **Return Attribution** table for 1-day, 1-month, and 1-quarter
-returns. Pass `--no-attribution` to skip return attribution. Missing holdings and
-any discovered semantic factors print in the footer.
+The CLI prints one nested **Risk & Return Attribution** table (Common Factor →
+Market, Style, Sector, Industry → Specific → Total). Each factor row shows its
+exposure, active exposure, and risk share alongside its 1-day, 1-month, and
+1-quarter return contributions, so risk and realized return sit side by side
+Barra-style. Pass `--no-attribution` to drop the return columns. Missing holdings
+and any discovered semantic factors print in the footer.
 
 By default, OpenFactor loads the latest published model. For reproducible
 historical reports, pass a dated snapshot with `as_of_date` in Python or
