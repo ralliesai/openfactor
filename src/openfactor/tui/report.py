@@ -11,8 +11,8 @@ from openfactor.portfolio.report import missing_holdings
 from openfactor.portfolio.summary import risk_decomposition
 
 
-HORIZONS = ["1 Day", "1 Month", "1 Quarter"]
-WINDOWS = [1, 21, 63]
+HORIZONS = ["1 Day", "1 Week", "1 Month", "1 Quarter"]
+WINDOWS = [1, 5, 21, 63]
 
 
 def tui_report(portfolio, snapshot):
@@ -31,7 +31,7 @@ def tui_report(portfolio, snapshot):
     attach_returns(active["rows"], index)
     names = specific_by_name(portfolio, snapshot)
     tail = tail_metrics(portfolio, snapshot, total["volatility"], active["tracking_error"])
-    blank = [None, None, None]
+    blank = [None] * len(HORIZONS)
     portfolio_ret = index["total"] if index else blank
     benchmark_ret = (index["factor"].get("market") if index else None) or blank
     active_ret = [diff(p, b) for p, b in zip(portfolio_ret, benchmark_ret)]

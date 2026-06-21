@@ -6,7 +6,7 @@ from openfactor.portfolio.report import weights_for
 from openfactor.portfolio.summary import clean_label, family
 
 
-HORIZONS = [("1 Day", 1), ("1 Month", 21), ("1 Quarter", 63)]
+HORIZONS = [("1 Day", 1), ("1 Week", 5), ("1 Month", 21), ("1 Quarter", 63)]
 TRADING_DAYS = 252
 
 

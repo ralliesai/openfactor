@@ -177,8 +177,10 @@ class OpenFactorTUI(App):
         rows = [row for row in r["active_rows"] if row.get("ret") and row["ret"][h] is not None]
         rows.sort(key=lambda row: -abs(row["ret"][h]))
         tail = max(0, len(rows) - TOP_N)
+        badge = ("[green]your book's actual day[/]" if h == 0
+                 else "[yellow]current-weights backtest — assumes you held today's book the whole window[/]")
         self.query_one("#returns_summary", Static).update(
-            f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}\n"
+            f"[b]{r['horizons'][h]}[/] · {r['horizon_dates'][h]}   {badge}\n"
             f"Benchmark {signed(r['benchmark_ret'][h])}  →  Portfolio {signed(r['portfolio_ret'][h])}"
             f"   =   Active (excess) {signed(r['active_ret'][h])}\n"
             f"[dim]rows below split the active return (top contributors; {tail} smaller factors folded)[/]"
