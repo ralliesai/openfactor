@@ -1,7 +1,11 @@
 import json
-from typing import TypedDict
 
 import pandas as pd
+
+try:  # pydantic needs typing_extensions.TypedDict for tool schemas on Python < 3.12
+    from typing_extensions import TypedDict
+except ImportError:
+    from typing import TypedDict
 
 from openfactor.tui.report import tui_report
 
