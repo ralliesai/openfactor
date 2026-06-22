@@ -103,6 +103,7 @@ def metric_glossary(files):
         "idiosyncratic_return_by_name ranks latest-day idiosyncratic return by holding.",
         "idiosyncratic_risk_by_name.rows ranks idiosyncratic risk by holding.",
         "portfolio_ret, benchmark_ret, and active_ret are realized portfolio, benchmark, and excess returns.",
+        "realized_windows contains available multi-day return attribution windows built from stored --track days.",
     ]
     lines.extend(f"{path.name}: {FILE_DESCRIPTIONS.get(path.name, 'OpenFactor report data file.')}" for path in files)
     return lines

@@ -9,6 +9,7 @@ from threading import Thread
 import pandas as pd
 
 from openfactor.llm.report_bundle import file_previews, metric_glossary, write_report_bundle
+from openfactor.llm.report_tool import json_safe, portfolio_report_tool
 
 
 DEFAULT_REPORT_CHAT_MODEL = "gpt-5.5"
@@ -48,13 +49,16 @@ class ReportChat:
 
         set_default_openai_key(self.api_key)
         file_ids = await asyncio.to_thread(self.ensure_files_uploaded)
+        tools = [
+            CodeInterpreterTool(code_interpreter_config(file_ids)),
+            WebSearchTool(user_location={"type": "approximate", "country": "US"}),
+        ]
+        if self.snapshot is not None:
+            tools.append(portfolio_report_tool(self.snapshot))
         agent = Agent(
             name="OpenFactor PM report analyst",
             model=self.model,
-            tools=[
-                CodeInterpreterTool(code_interpreter_config(file_ids)),
-                WebSearchTool(user_location={"type": "approximate", "country": "US"}),
-            ],
+            tools=tools,
             model_settings=ModelSettings(
                 tool_choice="auto",
                 reasoning=Reasoning(effort="medium"),
@@ -286,6 +290,8 @@ def report_context(report):
         ),
         "active_return_reconciliation": active_return_reconciliation(report),
         "top_active_return_contributors": top_active_return_contributors(report, 12),
+        "realized_return_windows": realized_return_windows(report),
+        "realized_window_contributors": realized_window_contributors(report, 8),
         "idiosyncratic_return_by_name": rows_frame(report["idiosyncratic_return_by_name"]),
         "idiosyncratic_risk_by_name": rows_frame(report["idiosyncratic_risk_by_name"]["rows"]),
         "top_active_risk_rows": rows_frame(
@@ -337,6 +343,51 @@ def top_active_return_contributors(report, limit):
     return pd.DataFrame(rows[:limit])
 
 
+def realized_return_windows(report):
+    """Return available multi-day realized attribution windows."""
+    rows = []
+    for key, window in (report.get("realized_windows") or {}).items():
+        rows.append(
+            {
+                "key": key,
+                "label": window.get("label"),
+                "days": window.get("days"),
+                "date_range": window.get("date_range"),
+                "benchmark_return": window.get("benchmark"),
+                "active_return": window.get("active"),
+                "portfolio_return": window.get("portfolio"),
+                "idiosyncratic_return": window.get("idiosyncratic"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def realized_window_contributors(report, limit):
+    """Return top factor contributors for each multi-day realized window."""
+    rows = []
+    lookup = {row["factor"]: (row["label"], row["family"]) for row in report.get("active_rows", [])}
+    for key, window in (report.get("realized_windows") or {}).items():
+        active = window.get("active")
+        factors = sorted(
+            (window.get("factor") or {}).items(),
+            key=lambda item: abs(item[1] or 0.0),
+            reverse=True,
+        )
+        for factor, contribution in factors[:limit]:
+            label, family = lookup.get(factor, (factor, None))
+            rows.append(
+                {
+                    "window": key,
+                    "label": window.get("label"),
+                    "group": family,
+                    "factor": label,
+                    "contribution": contribution,
+                    "pct_active": ratio(contribution, active),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def family_value(report, name):
     """Return the latest-day return contribution for one factor family."""
     values = report.get("family_ret", {}).get(name)
@@ -366,23 +417,6 @@ def full_report_json(report):
 def rows_frame(rows):
     """Return a DataFrame from report row dictionaries."""
     return pd.DataFrame([json_safe(row) for row in rows])
-
-
-def json_safe(value):
-    """Return JSON-safe Python values for report payloads."""
-    if isinstance(value, dict):
-        return {str(k): json_safe(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [json_safe(v) for v in value]
-    if isinstance(value, tuple):
-        return [json_safe(v) for v in value]
-    if isinstance(value, pd.Timestamp):
-        return str(value.date())
-    if hasattr(value, "item"):
-        value = value.item()
-    if isinstance(value, float) and pd.isna(value):
-        return None
-    return value
 
 
 def run_sync(coro):

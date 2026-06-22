@@ -23,12 +23,13 @@ def main():
     snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
     report = tui_report(portfolio, snapshot)
     if args.track:
-        from openfactor.tui.track import realized_attribution, realized_stats, record_for, update_track
+        from openfactor.tui.track import realized_attribution, realized_stats, realized_windows, update_track
 
-        frame = update_track(args.track, record_for(report))
-        report["track"] = realized_stats(frame)
-        report["realized"] = realized_attribution(frame)
-        print(f"recorded {report['meta']['as_of_date']} → {args.track} ({report['track']['days']} day(s) stored)")
+        track = update_track(args.track, report)
+        report["track"] = realized_stats(track)
+        report["realized"] = realized_attribution(track)
+        report["realized_windows"] = realized_windows(track)
+        print(f"recorded {report['meta']['as_of_date']} -> {args.track} ({report['track']['days']} day(s) stored)")
     OpenFactorApp(report, snapshot=snapshot).run()
 
 
@@ -42,7 +43,7 @@ def parse_args():
     parser.add_argument("--universe", default="openfactor-us1000")
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
-    parser.add_argument("--track", help="CSV file to accumulate each day's result into (upserts by date)")
+    parser.add_argument("--track", help="Local folder to accumulate detailed daily portfolio history")
     return parser.parse_args()
 
 

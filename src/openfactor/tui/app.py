@@ -362,8 +362,9 @@ class OpenFactorApp(App):
 
     def populate_idiosyncratic_returns(self):
         table = self.query_one("#idiosyncratic_returns", DataTable)
-        table.add_columns("Ticker", "Weight", "Contribution", "% Idio")
-        rows = self.report.get("idiosyncratic_return_by_name") or []
+        table.clear(columns=True)
+        table.add_columns("Ticker", idiosyncratic_weight_label(self.horizon), "Contribution", "% Idio")
+        rows = self.idiosyncratic_return_rows()
         if not rows:
             table.add_row("—", Text("—", style="dim"), Text("—", style="dim"), Text("—", style="dim"))
             return
@@ -375,9 +376,15 @@ class OpenFactorApp(App):
                 idiosyncratic_share_cell(row["share"], row["contribution"]),
             )
 
+    def idiosyncratic_return_rows(self):
+        """Return idiosyncratic return rows for the selected return horizon."""
+        if realized_horizon(self.horizon):
+            return realized_window(self.report, self.horizon).get("idiosyncratic_by_name") or []
+        return self.report.get("idiosyncratic_return_by_name") or []
+
     def populate_returns(self):
-        if self.horizon == "track":
-            self.populate_realized()
+        if realized_horizon(self.horizon):
+            self.populate_realized(self.horizon)
             return
         h = self.horizon
         r = self.report
@@ -465,15 +472,16 @@ class OpenFactorApp(App):
                 te_cell(row["te_share"]),
             )
 
-    def populate_realized(self):
+    def populate_realized(self, key):
         """Render attribution summed over the real daily holdings from --track."""
         r = self.report
-        real = r["realized"]
+        real = realized_window(r, key)
         lookup = {row["factor"]: (row["label"], row["family"]) for row in r["active_rows"]}
         items = sorted(real["factor"].items(), key=lambda kv: -abs(kv[1]))
         tail = max(0, len(items) - TOP_N)
+        title = real.get("label") or f"Realized · {real['days']} trading day(s)"
         self.query_one("#returns_summary", Static).update(
-            f"[b]Realized · {real['days']} trading day(s)[/] · {real['date_range']}   "
+            f"[b]{title}[/] · {real['date_range']}   "
             "[green]your actual book, summed day by day[/]\n"
             f"{r['meta']['benchmark']['name']} return {signed(real['benchmark'])}"
             f"  +  Active return {signed(real['active'])}"
@@ -555,10 +563,10 @@ class OpenFactorApp(App):
         return "\n".join(lines)
 
     def track_lines(self):
-        """Return Track-record lines when a --track file has accumulated days."""
+        """Return track-record lines when a --track folder has accumulated days."""
         track = self.report.get("track")
         if not track or not track["days"]:
-            return ["[dim]Pass --track <file> to store each day's result and build a REAL "
+            return ["[dim]Pass --track <folder> to store each day's result and build a REAL "
                     "track record (realized IR, hit rate) over time.[/]"]
         ir = "—" if track["ir"] is None else f"{track['ir']:.2f}"
         rb = "—" if track.get("realized_beta") is None else f"{track['realized_beta']:.2f}"
@@ -586,29 +594,38 @@ class OpenFactorApp(App):
             "stock-picking skill.",
             "[6] Active return contribution is lagged exposure times realized factor return. % Active can exceed "
             "100% when positive and negative factor effects offset.",
-            "[7] The Realized button, when present, sums the holdings actually stored by --track.",
+            "[7] Multi-day return buttons, when present, sum the holdings actually stored by --track.",
         ])
 
     # ---- interaction ----------------------------------------------------
     def horizon_buttons(self):
         buttons = [Button(h, id=f"h{i}", variant=("primary" if i == self.horizon else "default"))
                    for i, h in enumerate(self.report["horizons"])]
-        realized = self.report.get("realized")
-        if realized:
-            buttons.append(Button(f"Realized · {realized['days']}d", id="htrack",
-                                  variant=("success" if self.horizon == "track" else "default")))
+        for key, window in realized_windows(self.report).items():
+            buttons.append(
+                Button(
+                    window["label"],
+                    id=f"hrealized_{key}",
+                    variant=("primary" if self.horizon == realized_key(key) else "default"),
+                )
+            )
         return buttons
 
     def on_button_pressed(self, event):
         bid = event.button.id
         if not bid or not bid.startswith("h"):
             return
-        self.horizon = "track" if bid == "htrack" else int(bid[1:])
+        if bid.startswith("hrealized_"):
+            self.horizon = realized_key(bid.removeprefix("hrealized_"))
+        else:
+            self.horizon = int(bid[1:])
         for i in range(len(self.report["horizons"])):
             self.query_one(f"#h{i}", Button).variant = "primary" if i == self.horizon else "default"
-        if self.report.get("realized"):
-            self.query_one("#htrack", Button).variant = "success" if self.horizon == "track" else "default"
+        for key in realized_windows(self.report):
+            button = self.query_one(f"#hrealized_{key}", Button)
+            button.variant = "primary" if self.horizon == realized_key(key) else "default"
         self.populate_returns()
+        self.populate_idiosyncratic_returns()
 
     async def on_input_submitted(self, event):
         if event.input.id != "chat_input" or not self.chat:
@@ -680,6 +697,32 @@ def return_row(label, family, contribution, active_share, te_share, kind):
         "te_share": te_share,
         "kind": kind,
     }
+
+
+def idiosyncratic_weight_label(horizon):
+    """Return the weight column label for the selected return horizon."""
+    return "Avg Weight" if realized_horizon(horizon) else "Weight"
+
+
+def realized_windows(report):
+    """Return the available multi-day realized return windows."""
+    return report.get("realized_windows") or {}
+
+
+def realized_key(key):
+    """Return the app-state key for one realized window."""
+    return f"realized:{key}"
+
+
+def realized_horizon(horizon):
+    """Return True when the selected horizon is a realized return window."""
+    return isinstance(horizon, str) and horizon.startswith("realized:")
+
+
+def realized_window(report, horizon):
+    """Return the selected realized return window."""
+    key = horizon.removeprefix("realized:")
+    return realized_windows(report)[key]
 
 
 def chat_fragment(author, body):

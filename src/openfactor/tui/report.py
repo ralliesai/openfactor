@@ -80,6 +80,7 @@ def tui_report(portfolio, snapshot):
         "horizon_dates": horizon_labels(dates),
         "track": None,
         "realized": None,
+        "realized_windows": {},
     }
     return report
 

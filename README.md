@@ -494,11 +494,12 @@ look-ahead.
 Exposures are built from price history, market data, point-in-time fundamentals,
 forward estimates, analyst data, and sector/industry classification. Each scalar
 exposure is winsorized around the cross-sectional median (MAD-based, so a handful
-of outliers can't dominate) and then standardized to a z-score. Standardization
-is market-cap weighted where caps are available: the cap-weighted mean is removed
-so the market sits near zero on every style factor, leaving each exposure as a
-tilt relative to the market (it falls back to equal weighting when caps are
-missing). Sector and industry exposures stay categorical.
+of outliers can't dominate) and then standardized to a z-score. The cap-weighted
+mean is removed so the market sits near zero on every style factor (each exposure
+reads as a tilt relative to the market), and the score is divided by the
+equal-weighted standard deviation so a few mega-caps don't set the scale. It falls
+back to equal weighting when caps are missing. Sector and industry exposures stay
+categorical.
 
 Exposures for a given day use only information known *before* that day's return:
 prices through the prior close, and the fundamentals and estimates effective as
@@ -515,8 +516,8 @@ stock return = S&P 500 benchmark market + sector + industry + style factors + re
 
 The fit is built to be robust:
 
-- **Market-cap weighted (WLS)** — large, liquid names anchor the regression
-  instead of microcaps.
+- **Root-cap weighted (WLS)** — regression weights are √(market cap), so large,
+  liquid names anchor the fit without a handful of mega-caps dominating it.
 - **Sector returns constrained to a cap-weighted sum of zero**, so sector
   returns read as clean tilts relative to the benchmark market leg.
 - **Winsorized stock returns** — a single name's blow-up day can't distort the
@@ -560,8 +561,9 @@ needs no index license.
 Active exposures are the portfolio's exposures minus the risk proxy's
 (`active = portfolio − risk proxy`), and the same factor covariance and
 idiosyncratic risk produce active factor risk, active idiosyncratic risk, and total
-**tracking error**. Because style exposures are cap-weighted standardized,
-the risk proxy sits near zero on every style factor: active style exposures read
+**tracking error**. Because style exposures are standardized around the
+cap-weighted mean, the risk proxy sits near zero on every style factor: active
+style exposures read
 as the portfolio's tilts, the market factor nets to zero, and sector and industry
 carry the real risk-proxy-relative bets.
 

@@ -30,7 +30,7 @@ def standardize(values, weights=None):
 
     Example:
         weights=None uses equal-weight mean and volatility.
-        weights=[90, 10] uses cap-weighted mean and volatility.
+        weights=[90, 10] uses the cap-weighted mean and equal-weighted volatility.
     """
     values = np.asarray(values, dtype=float).copy()
     good = np.isfinite(values)
@@ -47,8 +47,8 @@ def standardize(values, weights=None):
         if fit.sum() < 2:
             return standardize(values)
         weights = weights[fit] / weights[fit].sum()
-        center = (values[fit] * weights).sum()
-        scale = np.sqrt(((values[fit] - center) ** 2 * weights).sum())
+        center = (values[fit] * weights).sum()  # cap-weighted mean (USE4 §2.3)
+        scale = values[fit].std()  # equal-weighted std, so mega-caps don't set the scale
 
     if scale == 0:
         values[good] = 0.0

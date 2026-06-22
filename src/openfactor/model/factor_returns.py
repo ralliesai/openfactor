@@ -114,10 +114,10 @@ def market_cap_weights(reference):
 
 
 def weighted_lstsq(x, y, weights):
-    """Solve a market-cap weighted least squares fit.
+    """Solve a weighted least squares fit for the given regression weights.
 
     Example:
-        a stock with 4x market cap gets 2x row weight after sqrt weighting.
+        a stock with 4x the regression weight gets 2x its row weight.
     """
     weights = np.asarray(weights, dtype=float)
     weights = weights / weights.mean()
@@ -263,7 +263,7 @@ def fit_cross_section(x_frame, returns, groups=None, market_caps=None, return_li
     fitted = constrained_lstsq(
         design.loc[good].to_numpy(dtype=float),
         returns[good] if fixed_market is None else returns[good] - fixed_market,
-        weights[good],
+        np.sqrt(weights[good]),  # √cap regression weights (Barra USE4 §3.1); constraints stay cap-weighted
         constraints,
     )
     if fixed_market is None:
