@@ -23,7 +23,7 @@ def risk_decomposition(portfolio, snapshot):
     groups = exposures.drop_duplicates("factor").set_index("factor")["group"].to_dict()
 
     factor_var = float(fr["variance_contribution"].sum())
-    idiosyncratic = portfolio_idiosyncratic_risk(portfolio, snapshot.idiosyncratic_risk)
+    idiosyncratic = portfolio_idiosyncratic_risk(portfolio, snapshot.idiosyncratic_risk, strict=False)
     idiosyncratic_var = 0.0 if pd.isna(idiosyncratic) else float(idiosyncratic) ** 2
     total_var = (factor_var + idiosyncratic_var) or np.nan
 

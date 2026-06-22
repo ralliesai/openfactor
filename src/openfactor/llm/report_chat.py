@@ -24,7 +24,7 @@ class ReportChat:
         self.snapshot = snapshot
         self.model = model or os.getenv("OPENFACTOR_REPORT_CHAT_MODEL", DEFAULT_REPORT_CHAT_MODEL)
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.timeout = float(timeout or os.getenv("OPENFACTOR_REPORT_CHAT_TIMEOUT", "90"))
+        self.timeout = float(timeout or os.getenv("OPENFACTOR_REPORT_CHAT_TIMEOUT", "600"))
         self.client = None
         self.local_bundle = None
         self.files = []

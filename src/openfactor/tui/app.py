@@ -640,7 +640,8 @@ class OpenFactorApp(App):
         try:
             answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history)
         except Exception as error:
-            await self.append_chat("OpenFactor", f"Chat error: {error}")
+            detail = str(error) or type(error).__name__  # timeouts stringify empty
+            await self.append_chat("OpenFactor", f"Chat error: {detail}")
         else:
             self.chat_history.append({"role": "user", "content": question})
             self.chat_history.append({"role": "assistant", "content": answer})

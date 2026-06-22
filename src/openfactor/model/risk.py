@@ -24,8 +24,10 @@ def portfolio_factor_exposure(exposures, portfolio):
     """
     require_columns(portfolio, ["ticker", "allocation"])
     weights = portfolio.set_index("ticker")["allocation"]
-    matrix = model_exposure_matrix(exposures).reindex(weights.index)
-    exposure = matrix.multiply(weights, axis=0).sum(min_count=len(weights))
+    # Held names outside the model (e.g. an index hedge) are factor-neutral, not
+    # NaN — otherwise one off-universe ticker would void every factor exposure.
+    matrix = model_exposure_matrix(exposures).reindex(weights.index).fillna(0.0)
+    exposure = matrix.multiply(weights, axis=0).sum()
     exposure.loc["market"] = weights.sum()
     return exposure
 
