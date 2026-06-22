@@ -754,15 +754,15 @@ def chat_fragment(author, body):
 
 
 def tool_progress_label(name, description):
-    """Return a transient italic line shown while a tool runs.
+    """Return a transient plain-text line shown while a tool runs.
 
     Example:
-        portfolio_report becomes "*⚙ portfolio_report — Re-run the report ...*".
+        portfolio_report becomes "└─ portfolio_report — Re-run the report ...".
     """
     summary = ""
     if description:
         summary = " — " + description.strip().splitlines()[0][:100]
-    return f"\n\n*⚙ {name}{summary}*\n"
+    return f"\n\n└─ {name}{summary}\n"
 
 
 def family_value(report, name, horizon):
