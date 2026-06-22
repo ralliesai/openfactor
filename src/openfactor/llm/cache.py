@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import StringIO
+import os
 import re
 import time
 import urllib.error
@@ -59,6 +60,26 @@ def write_semantic_cache(cache, path=DEFAULT_SEMANTIC_CACHE):
     path.write_text(text)
 
 
+def try_write_semantic_cache(cache, path=DEFAULT_SEMANTIC_CACHE):
+    """Write the semantic cache when the target is writable in this environment.
+
+    Example:
+        default public R2 cache writes on maintainer machines, but local
+        discovery still succeeds without R2 credentials.
+    """
+    if not path:
+        return False
+
+    if is_r2_path(path) and not r2_write_env_present():
+        return False
+
+    if str(path).startswith(("http://", "https://")):
+        return False
+
+    write_semantic_cache(cache, path)
+    return True
+
+
 def read_cache_text(path):
     """Return semantic cache CSV text.
 
@@ -112,6 +133,18 @@ def r2_parts(path):
     if not bucket or not key:
         raise ValueError("semantic cache R2 path must look like r2://bucket/key")
     return bucket, key
+
+
+def r2_write_env_present():
+    """Return True when all R2 write credentials are available."""
+    return all(
+        os.getenv(name)
+        for name in [
+            "OPENFACTOR_R2_ACCOUNT_ID",
+            "OPENFACTOR_R2_ACCESS_KEY_ID",
+            "OPENFACTOR_R2_SECRET_ACCESS_KEY",
+        ]
+    )
 
 
 def semantic_factor_context(cache, limit=100):

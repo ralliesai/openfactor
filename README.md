@@ -127,8 +127,8 @@ decision numbers:
   **Active return reconciliation** for style, sector, industry, idiosyncratic
   return, and total active return; and **Top active return contributors** for
   ranked factor details with contribution, `% Active`, and `TE Share` side by
-  side. Longer real attribution comes from an accumulated `--track` history,
-  not from running today's weights backward.
+  side. When enough `--track` history exists, the same panel adds multi-day
+  attribution buttons for the stored holding path.
 - **Idiosyncratic return by name** — the holdings that drove the name-level
   return line, adjusted so the name rows reconcile to the benchmark-relative
   idiosyncratic return shown in the active-return table.
@@ -140,25 +140,50 @@ decision numbers:
 ### Building a track record
 
 A single run shows where you stand *today*. To turn daily snapshots into a real
-track record, pass `--track <file>`:
+track record, pass `--track <folder>`:
 
 ```bash
-openfactor --portfolio portfolio.csv --track track.csv
+openfactor --portfolio portfolio.csv --track ./openfactor-track
 ```
 
-Each run upserts one row (keyed by the snapshot date — re-running a date
-overwrites it) with that day's holdings, realized active return, tracking error,
-ex-ante beta, and that day's **per-factor return breakdown**. Run it daily and
-the stored daily returns accumulate into **realized** beta, information ratio,
-hit rate, and cumulative active return (shown once enough days exist). To
-backfill honestly, run past dates (`--snapshot <date>`) with the holdings you
-*actually* held then — not today's weights.
+The track folder is local to your machine. It does not write to OpenFactor's
+public buckets. Each run stores one dated report under `days/<date>/` and
+rebuilds aggregate CSVs at the folder root for analysis. Re-running the same
+snapshot date overwrites that date's files.
 
-Because each day's factor breakdown is stored, the Active return attribution panel gains
-a green **Realized · N d** button that sums those daily contributions over your
-*real* holding path — the honest "what drove the book" over the window. This is
-not a backtest. The realized view needs no assumption about stable holdings: it
-is exactly the sum of the days you actually recorded.
+The folder stores enough detail to answer real multi-day questions later:
+
+| File | Contents |
+| --- | --- |
+| `track.csv` | Daily portfolio, benchmark, active return, risk, beta, and summary fields |
+| `holdings.csv` | Daily portfolio weights |
+| `factor_contrib.csv` | Daily factor return contributions |
+| `idiosyncratic_returns.csv` | Daily idiosyncratic return by holding |
+| `idiosyncratic_risk.csv` | Daily idiosyncratic risk by holding |
+| `active_risk.csv` | Daily active-risk driver rows |
+| `risk_rows.csv` | Daily total-risk decomposition rows |
+| `days/<date>/report.json` | Complete report snapshot for that date |
+
+Run it daily and the stored daily returns accumulate into realized beta,
+information ratio, hit rate, and cumulative active return. To backfill honestly,
+run past dates (`--snapshot <date>`) with the holdings you *actually* held then,
+not today's weights.
+
+Because each day's factor and idiosyncratic return breakdown is stored, the
+Active return attribution panel adds multi-day buttons as history builds:
+
+| Stored days | Button |
+| --- | --- |
+| 7+ | `1W` |
+| 22+ | `1M` |
+| 63+ | `1Q` |
+| 252+ | `1Y` |
+| More than 252 | `All` |
+
+Each button sums the real stored daily holdings over that window. It is not a
+backtest and it does not run today's weights backward. The idiosyncratic return
+name-driver table switches with the selected window too, using average weight
+over the selected stored days.
 
 The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
 in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By
@@ -245,14 +270,26 @@ not wired into the interactive terminal.
 
 Environment:
 
+User runtime:
+
 | Variable | Required For |
 | --- | --- |
 | `OPENAI_API_KEY` | LLM discovery and membership classification |
-| `OPENFACTOR_R2_ACCOUNT_ID` | Writing the shared public semantic cache |
-| `OPENFACTOR_R2_ACCESS_KEY_ID` | Writing the shared public semantic cache |
-| `OPENFACTOR_R2_SECRET_ACCESS_KEY` | Writing the shared public semantic cache |
 | `OPENFACTOR_SEMANTIC_MODEL` | Optional model override |
 | `OPENFACTOR_SEMANTIC_TIMEOUT` | Optional per-request timeout override |
+
+Maintainer publishing only:
+
+| Variable | Required For |
+| --- | --- |
+| `OPENFACTOR_R2_ACCOUNT_ID` | Writing shared public artifacts |
+| `OPENFACTOR_R2_ACCESS_KEY_ID` | Writing shared public artifacts |
+| `OPENFACTOR_R2_SECRET_ACCESS_KEY` | Writing shared public artifacts |
+
+Normal users do not need R2 credentials. The default shared semantic cache is
+read through the public URL. If discovery finds new labels on a machine without
+R2 write credentials, the result is still returned; OpenFactor just skips the
+shared cache write-back.
 
 How it works:
 
@@ -264,7 +301,7 @@ How it works:
 | Guardrail | Rejects candidates already explained by market, sector, industry, or existing style factors |
 | Membership | Classifies each universe stock as binary `0/1`, not a fragile LLM score |
 | Refit | Keeps candidates when idiosyncratic return variance is lower after adding them |
-| Cache | Reuses old binary labels and only asks the LLM for missing ticker/factor cells |
+| Cache | Reuses old binary labels and only asks the LLM for missing ticker/factor cells; write-back is optional |
 
 The shared semantic cache lives in the Cloudflare public bucket:
 
@@ -301,8 +338,9 @@ useful if the ticker re-enters later.
 
 Institutions can also pass their own client with a
 `complete_json(instructions, payload)` method. Pass a local `semantic_cache`
-path only for private experiments; the default shared cache is the public R2
-object.
+path for private experiments if they want write-back without OpenFactor
+maintainer credentials; the default shared cache is a public read-only object
+for normal users.
 
 ## Factor Coverage
 

@@ -14,8 +14,8 @@ from openfactor.llm.cache import (
     cached_memberships,
     read_semantic_cache,
     semantic_factor_context,
+    try_write_semantic_cache,
     update_semantic_cache,
-    write_semantic_cache,
 )
 from openfactor.model.exposures import model_exposure_matrix
 from openfactor.portfolio.report import portfolio_report
@@ -103,7 +103,8 @@ def discover_semantic_factors(
     universe = snapshot.universe["ticker"].dropna().astype(str).tolist()
     stocks = stock_contexts(snapshot, universe)
     memberships = classify_members(llm, candidates, stocks, context, cache, batch_size, progress)
-    write_semantic_cache(update_semantic_cache(cache, memberships), semantic_cache)
+    wrote_cache = try_write_semantic_cache(update_semantic_cache(cache, memberships), semantic_cache)
+    log_semantic_cache_write(logger, semantic_cache, wrote_cache)
     log_portfolio_memberships(logger, memberships, weights)
 
     universe_residuals = residual_matrix(snapshot.residual_returns, universe, window)
@@ -713,6 +714,14 @@ def log_semantic_cache(logger, path, existing_semantics):
     if not logger:
         return
     logger(f"semantic cache path={path} factors={len(existing_semantics)}")
+
+
+def log_semantic_cache_write(logger, path, wrote):
+    """Print whether discovered labels were written back to the cache."""
+    if not logger:
+        return
+    status = "updated" if wrote else "not written"
+    logger(f"semantic cache {status}: {path}")
 
 
 def prompt(name):
