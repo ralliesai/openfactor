@@ -35,14 +35,18 @@ class ReportChat:
         """Return a chat client only when OPENAI_API_KEY is exported."""
         return cls(report, snapshot=snapshot) if report_chat_enabled() else None
 
-    def answer(self, question, history=None):
-        """Answer one PM question with an Agent SDK code-interpreter agent."""
+    def answer(self, question, history=None, on_tool=None):
+        """Answer one PM question with an Agent SDK code-interpreter agent.
+
+        on_tool(kind, name, description) fires as tools start, so a UI can show
+        what the agent is doing before the final answer arrives.
+        """
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY is not exported")
 
-        return run_sync(self.answer_async(question, history))
+        return run_sync(self.answer_async(question, history, on_tool))
 
-    async def answer_async(self, question, history=None):
+    async def answer_async(self, question, history=None, on_tool=None):
         """Answer one PM question from async Textual or script code."""
         from agents import Agent, CodeInterpreterTool, ModelSettings, Runner, WebSearchTool, set_default_openai_key
         from openai.types.shared.reasoning import Reasoning
@@ -71,6 +75,7 @@ class ReportChat:
                 agent,
                 report_chat_input(self.report, question, history, self.files),
                 max_turns=int(os.getenv("OPENFACTOR_REPORT_CHAT_MAX_TURNS", DEFAULT_REPORT_CHAT_TURNS)),
+                hooks=make_tool_hooks(on_tool),
             ),
             timeout=self.timeout,
         )
@@ -123,6 +128,26 @@ class ReportChat:
 def report_chat_enabled():
     """Return True when the report should show the chat sidebar."""
     return bool(os.getenv("OPENAI_API_KEY"))
+
+
+def make_tool_hooks(on_tool):
+    """Return RunHooks that report tool calls, or None when on_tool is unset.
+
+    Example:
+        on_tool("start", "portfolio_report", "Re-run the report ...") fires as
+        the agent invokes a tool, so a UI can show progress.
+    """
+    if on_tool is None:
+        return None
+
+    from agents import RunHooks
+
+    class ToolProgressHooks(RunHooks):
+        async def on_tool_start(self, context, agent, tool):
+            name = getattr(tool, "name", None) or type(tool).__name__
+            on_tool("start", name, getattr(tool, "description", "") or "")
+
+    return ToolProgressHooks()
 
 
 def code_interpreter_config(file_ids):

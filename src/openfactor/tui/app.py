@@ -162,6 +162,7 @@ class OpenFactorApp(App):
         self.chat = ReportChat.from_env(report, snapshot=snapshot)
         self.chat_history = []
         self.chat_transcript = ""
+        self.chat_tool_status = ""
         self.chat_wait_timer = None
         self.chat_wait_frame = 0
 
@@ -638,11 +639,13 @@ class OpenFactorApp(App):
         self.start_chat_waiting(event.input)
         await self.append_chat("You", question)
         try:
-            answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history)
+            answer = await asyncio.to_thread(self.chat.answer, question, self.chat_history, self._tool_progress)
         except Exception as error:
             detail = str(error) or type(error).__name__  # timeouts stringify empty
+            self.chat_tool_status = ""
             await self.append_chat("OpenFactor", f"Chat error: {detail}")
         else:
+            self.chat_tool_status = ""
             self.chat_history.append({"role": "user", "content": question})
             self.chat_history.append({"role": "assistant", "content": answer})
             await self.append_chat("OpenFactor", answer)
@@ -652,7 +655,23 @@ class OpenFactorApp(App):
     async def append_chat(self, author, body):
         log = self.query_one("#chat_log", Markdown)
         self.chat_transcript = f"{self.chat_transcript}{chat_fragment(author, body)}"
-        await log.update(self.chat_transcript)
+        await log.update(self.chat_transcript + self.chat_tool_status)
+        log.scroll_end(animate=False)
+
+    def _tool_progress(self, kind, name, description):
+        """Worker-thread callback: surface a live tool-call line in the chat."""
+        try:
+            self.call_from_thread(self._render_tool_line, kind, name, description)
+        except Exception:
+            pass
+
+    async def _render_tool_line(self, kind, name, description):
+        """Append a transient tool-call line; it is cleared once the answer lands."""
+        if kind != "start":
+            return
+        self.chat_tool_status = f"{self.chat_tool_status}{tool_progress_label(name, description)}"
+        log = self.query_one("#chat_log", Markdown)
+        await log.update(self.chat_transcript + self.chat_tool_status)
         log.scroll_end(animate=False)
 
     def start_chat_waiting(self, chat_input):
@@ -732,6 +751,18 @@ def chat_fragment(author, body):
         quote = "\n".join(f"> {line}" if line else ">" for line in str(body).splitlines())
         return f"\n\n**You**\n\n{quote}\n"
     return f"\n\n**{author}**\n\n{str(body).strip()}\n"
+
+
+def tool_progress_label(name, description):
+    """Return a transient italic line shown while a tool runs.
+
+    Example:
+        portfolio_report becomes "*⚙ portfolio_report — Re-run the report ...*".
+    """
+    summary = ""
+    if description:
+        summary = " — " + description.strip().splitlines()[0][:100]
+    return f"\n\n*⚙ {name}{summary}*\n"
 
 
 def family_value(report, name, horizon):
