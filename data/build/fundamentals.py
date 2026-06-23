@@ -3,6 +3,7 @@ from datetime import timedelta
 import logging
 
 import pandas as pd
+from tqdm import tqdm
 
 
 LOGGER = logging.getLogger("openfactor.build")
@@ -76,8 +77,19 @@ class FundamentalHistory:
         if candidates.empty:
             return frame.iloc[0:0].copy()
 
+        groups = list(candidates.groupby(["_source_date", "_target_date"]))
+        LOGGER.info(
+            "SEC daily carry check started count=%s tickers=%s",
+            len(groups),
+            candidates["ticker"].nunique(),
+        )
         carried = []
-        for (source_date, target_date), group in candidates.groupby(["_source_date", "_target_date"]):
+        for (source_date, target_date), group in tqdm(
+            groups,
+            desc="SEC carry check",
+            unit="window",
+            dynamic_ncols=True,
+        ):
             changed = set(
                 self.downloader.new_sec_filing_tickers(
                     group["ticker"],
@@ -91,6 +103,7 @@ class FundamentalHistory:
             rows["as_of_date"] = rows["_target_date"]
             carried.append(rows.drop(columns=["_source_date", "_target_date"]))
 
+        LOGGER.info("SEC daily carry check finished")
         if not carried:
             return frame.iloc[0:0].copy()
         return pd.concat(carried, ignore_index=True)
