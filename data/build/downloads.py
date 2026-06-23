@@ -199,18 +199,37 @@ class ProviderDownloader:
         Example:
             if AAPL filed today, new_sec_filing_tickers(["AAPL"], today, today) returns ["AAPL"].
         """
+        return sorted(self.sec_filing_dates_by_ticker(tickers, start_date, end_date))
+
+    def sec_filing_dates_by_ticker(self, tickers, start_date, end_date):
+        """Return 10-K/10-Q filed dates keyed by requested ticker.
+
+        Example:
+            sec_filing_dates_by_ticker(["AAPL"], today, today) returns {"AAPL": {today}}.
+        """
         if pd.to_datetime(start_date).date() > pd.to_datetime(end_date).date():
-            return []
+            return {}
 
         filings = SecApiClient().filings_between(start_date, end_date)
         if filings.empty:
-            return []
+            return {}
         requested = {
             str(ticker).upper(): SEC_TICKER_ALIAS.get(str(ticker).upper(), str(ticker).upper())
             for ticker in tickers
         }
-        filed = set(filings["ticker"].astype(str).str.upper())
-        return sorted(ticker for ticker, sec_ticker in requested.items() if sec_ticker in filed)
+        filings = filings.copy()
+        filings["ticker"] = filings["ticker"].astype(str).str.upper()
+        filings["filed_at"] = pd.to_datetime(filings["filed_at"], errors="coerce")
+        filings = filings.dropna(subset=["filed_at"])
+        filings["filed_at"] = filings["filed_at"].dt.date.astype(str)
+        filed = {}
+        for row in filings[["ticker", "filed_at"]].itertuples(index=False):
+            filed.setdefault(row.ticker, set()).add(row.filed_at)
+        return {
+            ticker: filed[sec_ticker]
+            for ticker, sec_ticker in requested.items()
+            if sec_ticker in filed
+        }
 
     def threaded_map(self, label, items, function, workers):
         """Run provider calls with one clean progress bar.
