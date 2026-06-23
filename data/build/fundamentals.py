@@ -32,7 +32,7 @@ class FundamentalHistory:
             rows(["AAPL"], ["2026-06-15", "2026-06-16"]) returns both dates.
         """
         tickers = [str(ticker).upper() for ticker in tickers]
-        dates = [clean_date(date) for date in dates]
+        dates = sorted({clean_date(date) for date in dates})
         if self.previous is None or self.previous.empty:
             return self.downloader.sec_history(tickers, dates)
 
@@ -45,10 +45,17 @@ class FundamentalHistory:
             LOGGER.info("SEC daily cache used tickers=%s missing=0", len(tickers))
             return cached
 
-        if any(target in missing_dates for missing_dates in missing.values()):
-            frame = pd.concat([frame, self.carried_today_rows(frame, tickers, target)])
+        carried = self.carried_missing_rows(frame, missing)
+        if not carried.empty:
+            frame = pd.concat([frame, carried], ignore_index=True)
             cached = requested_rows(frame, tickers, dates)
             missing = missing_dates_by_ticker(cached, tickers, dates)
+            LOGGER.info(
+                "SEC daily cache carried rows=%s tickers=%s missing_tickers=%s",
+                len(carried),
+                carried["ticker"].nunique(),
+                len(missing),
+            )
             if not missing:
                 LOGGER.info("SEC daily cache carried tickers=%s missing=0", len(tickers))
                 return cached
@@ -59,21 +66,34 @@ class FundamentalHistory:
             fresh.append(self.downloader.sec_history(wanted_tickers, wanted_dates))
         return requested_rows(pd.concat([cached] + fresh, ignore_index=True), tickers, dates)
 
-    def carried_today_rows(self, frame, tickers, today):
-        """Carry latest rows to today when no newer filing exists.
+    def carried_missing_rows(self, frame, missing):
+        """Carry every missing PIT date when no newer filing exists.
 
         Example:
-            a 2026-06-15 AAPL row becomes 2026-06-16 when AAPL had no new filing.
+            a Friday AAPL row becomes Monday and Tuesday rows when no filing landed.
         """
-        latest = latest_before_today(frame, tickers, today)
-        if latest.empty:
-            return latest
+        candidates = carry_candidates(frame, missing)
+        if candidates.empty:
+            return frame.iloc[0:0].copy()
 
-        start = next_day(latest["as_of_date"].min())
-        changed = self.downloader.new_sec_filing_tickers(latest["ticker"], start, today)
-        carried = latest[~latest["ticker"].isin(changed)].copy()
-        carried["as_of_date"] = today
-        return carried
+        carried = []
+        for (source_date, target_date), group in candidates.groupby(["_source_date", "_target_date"]):
+            changed = set(
+                self.downloader.new_sec_filing_tickers(
+                    group["ticker"],
+                    next_day(source_date),
+                    target_date,
+                )
+            )
+            rows = group[~group["ticker"].isin(changed)].copy()
+            if rows.empty:
+                continue
+            rows["as_of_date"] = rows["_target_date"]
+            carried.append(rows.drop(columns=["_source_date", "_target_date"]))
+
+        if not carried:
+            return frame.iloc[0:0].copy()
+        return pd.concat(carried, ignore_index=True)
 
 
 def clean_frame(frame):
@@ -98,14 +118,28 @@ def requested_rows(frame, tickers, dates):
     return rows.drop_duplicates(["ticker", "as_of_date"], keep="last")
 
 
-def latest_before_today(frame, tickers, today):
-    """Return latest cached rows before today.
+def carry_candidates(frame, missing):
+    """Return prior cached rows that could be carried to missing dates.
 
     Example:
-        latest_before_today(rows, ["AAPL"], "2026-06-16") returns AAPL's prior row.
+        missing AAPL Monday and Tuesday rows use AAPL's latest cached Friday row.
     """
-    rows = frame[frame["ticker"].isin(tickers) & (frame["as_of_date"] < today)].copy()
-    return rows.sort_values("as_of_date").drop_duplicates("ticker", keep="last")
+    rows = []
+    for ticker, dates in missing.items():
+        history = frame[frame["ticker"] == ticker].sort_values("as_of_date")
+        if history.empty:
+            continue
+        for target_date in dates:
+            prior = history[history["as_of_date"] < target_date]
+            if prior.empty:
+                continue
+            row = prior.iloc[-1].copy()
+            row["_source_date"] = row["as_of_date"]
+            row["_target_date"] = target_date
+            rows.append(row)
+    if not rows:
+        return frame.iloc[0:0].copy()
+    return pd.DataFrame(rows)
 
 
 def missing_dates_by_ticker(frame, tickers, dates):
