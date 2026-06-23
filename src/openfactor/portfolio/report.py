@@ -44,10 +44,15 @@ FACTOR_DISPLAY_NAMES = {
 def portfolio_report(portfolio, snapshot):
     """Return the standard OpenFactor portfolio report tables.
 
+    portfolio accepts a ``value`` column (dollar holdings, gross-normalized to
+    signed weights — the same rule as the CLI) or an ``allocation`` column of
+    model weights. Both give the same tables; percentage risk is scale-free.
+
     Example:
         portfolio_report(portfolio, snapshot)["total_risk"]
         returns factor, idiosyncratic, and total risk rows.
     """
+    portfolio = normalized_holdings(portfolio)
     factor_risk = with_display_index(
         factor_risk_report_from_covariance(snapshot.exposures, portfolio, snapshot.factor_covariance)
     )
@@ -66,6 +71,32 @@ def portfolio_report(portfolio, snapshot):
         "total_risk": portfolio_risk_report(factor_risk, snapshot.idiosyncratic_risk, portfolio),
         "tracking_error": portfolio_risk_report(active_risk, snapshot.idiosyncratic_risk, active, strict=False),
     }
+
+
+def normalized_holdings(portfolio):
+    """Return holdings with a signed-weight ``allocation`` column.
+
+    Accepts an ``allocation`` column (model weights, used as-is) or a ``value``
+    column (dollar holdings, gross-normalized to signed weights — the same rule
+    the CLI applies to portfolio files). Signs are kept; only the gross scale is
+    removed, so a $1M and a $10M book of the same shape report alike.
+
+    Example:
+        ticker=AAPL value=400000 in a $1M gross book becomes allocation=0.40.
+    """
+    frame = portfolio.copy()
+    if "ticker" not in frame:
+        raise ValueError("portfolio needs a 'ticker' column")
+    if "allocation" in frame:
+        return frame
+    if "value" in frame:
+        values = pd.to_numeric(frame["value"])
+        gross = values.abs().sum()
+        if not gross > 0:
+            raise ValueError("portfolio gross value must be positive")
+        frame["allocation"] = values / gross
+        return frame
+    raise ValueError("portfolio needs an 'allocation' (weights) or 'value' (dollars) column")
 
 
 def style_report(exposures, portfolio):

@@ -32,6 +32,7 @@ from data.build.serialize import (
     fundamentals_audit_file,
     fundamentals_file,
     json_text,
+    machine_csv,
     panel_gzip,
     snapshot_csvs,
     spreadsheet_csv,
@@ -363,6 +364,7 @@ class DatasetBuilder:
             self.downloader.short_interest,
             ["ticker", "settlement_date"],
             "short interest",
+            min_existing_ticker_coverage=0.50,
         )
 
     def cached_finnhub(self, tickers, fundamentals, dates):
@@ -617,7 +619,7 @@ def publish_dataset(result, public_bucket, private_bucket, r2=None):
     LOGGER.info("publish private started bucket=%s", private_bucket)
     for folder, frame, filename in private_tables(result):
         LOGGER.info("publish private table=%s file=%s rows=%s", folder, filename, len(frame))
-        text = spreadsheet_csv(frame)
+        text = machine_csv(frame)
         r2.upload_text(
             text,
             private_bucket,

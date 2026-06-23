@@ -40,6 +40,7 @@ def cached_event_history(
     fetch,
     keys,
     label,
+    min_existing_ticker_coverage=None,
 ):
     """Return dated event rows by fetching only unchecked dates.
 
@@ -57,6 +58,15 @@ def cached_event_history(
         return fetch(tickers, start_date, end_date)
 
     cached_tickers = set(cached_tickers)
+    if sparse_event_cache(previous, cached_tickers, min_existing_ticker_coverage):
+        LOGGER.info(
+            "%s cache miss tickers=%s reason=sparse_previous rows=%s",
+            label,
+            len(tickers),
+            len(previous),
+        )
+        return fetch(tickers, start_date, end_date)
+
     existing = [ticker for ticker in tickers if ticker in cached_tickers]
     new = [ticker for ticker in tickers if ticker not in cached_tickers]
     fresh = []
@@ -71,6 +81,14 @@ def cached_event_history(
     rows = concat_cached_rows(previous, concat_frames(fresh), keys)
     LOGGER.info("%s cache used rows=%s tickers=%s", label, len(rows), len(tickers))
     return filter_dated_rows(rows, tickers, start_date, end_date, date_column)
+
+
+def sparse_event_cache(previous, cached_tickers, minimum):
+    """Return True when an existing raw event cache is clearly under-seeded."""
+    if minimum is None or not cached_tickers:
+        return False
+    covered = ticker_set(previous)
+    return len(covered) / len(cached_tickers) < minimum
 
 
 def missing_earnings_tickers(fundamentals, tickers, dates, previous=None, reported=None):

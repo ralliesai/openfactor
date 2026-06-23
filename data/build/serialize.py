@@ -284,6 +284,22 @@ def spreadsheet_csv(frame, index=False, index_label=None):
     return output.getvalue()
 
 
+def machine_csv(frame, index=False, index_label=None):
+    """Return a CSV string that preserves float precision for private caches.
+
+    Example:
+        machine_csv(prices) keeps high-price closes precise enough for audits.
+    """
+    output = StringIO()
+    frame.to_csv(
+        output,
+        index=index,
+        index_label=index_label,
+        float_format="%.17g",
+    )
+    return output.getvalue()
+
+
 def json_text(data):
     """Return readable JSON text.
 

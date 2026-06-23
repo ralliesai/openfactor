@@ -12,6 +12,10 @@
 
 </div>
 
+<p align="center">
+  <img src="img/example.png" alt="OpenFactor terminal screenshot">
+</p>
+
 OpenFactor is a deterministic equity risk model for portfolio analytics, risk
 attribution, and manager research workflows. It is designed to be an open
 alternative to institutional multi-factor risk models.
@@ -57,13 +61,17 @@ import openfactor as of
 portfolio = pd.DataFrame(
     {
         "ticker": ["AAPL", "MSFT", "NVDA"],
-        "allocation": [0.40, 0.30, 0.30],
+        "value": [400000, 300000, 300000],  # dollars held; negative for a short
     }
 )
 
 snapshot = of.load_snapshot("openfactor-us1000")
 report = of.portfolio_report(portfolio, snapshot)
 ```
+
+`portfolio_report` accepts a `value` column (dollar holdings, gross-normalized to
+signed weights) or an `allocation` column of model weights — both produce the
+same tables.
 
 ### Factor Model Data
 
@@ -91,6 +99,185 @@ OpenFactor does not solve portfolios. It supplies exposures, covariance,
 benchmark weights, idiosyncratic variance, and risk helpers that another library
 can use.
 
+## Factor Coverage
+
+<table>
+  <thead>
+    <tr>
+      <th>Family</th>
+      <th>Factor</th>
+      <th>Internal Name</th>
+      <th>Construction</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2"><strong>Market</strong></td>
+      <td>Market</td>
+      <td><code>market</code></td>
+      <td>Benchmark market leg; SPY/S&amp;P 500 in the public default snapshot</td>
+    </tr>
+    <tr>
+      <td>Beta</td>
+      <td><code>beta</code></td>
+      <td>Sensitivity to broad market returns</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><strong>Size</strong></td>
+      <td>Size</td>
+      <td><code>size</code></td>
+      <td>Log market capitalization</td>
+    </tr>
+    <tr>
+      <td>Mid-Cap</td>
+      <td><code>mid_cap</code></td>
+      <td>Nonlinear size exposure</td>
+    </tr>
+    <tr>
+      <td rowspan="5"><strong>Momentum</strong></td>
+      <td>Momentum</td>
+      <td><code>momentum</code></td>
+      <td>12-month return skipping the most recent month</td>
+    </tr>
+    <tr>
+      <td>Industry Momentum</td>
+      <td><code>industry_momentum</code></td>
+      <td>Recent momentum of industry peers</td>
+    </tr>
+    <tr>
+      <td>Seasonality</td>
+      <td><code>seasonality</code></td>
+      <td>Same-month historical return tendency</td>
+    </tr>
+    <tr>
+      <td>Long-Term Reversal</td>
+      <td><code>long_term_reversal</code></td>
+      <td>Negative return from the prior long-horizon window</td>
+    </tr>
+    <tr>
+      <td>Short-Term Reversal</td>
+      <td><code>short_term_reversal</code></td>
+      <td>Negative recent one-month return</td>
+    </tr>
+    <tr>
+      <td rowspan="3"><strong>Volatility</strong></td>
+      <td>Residual Volatility</td>
+      <td><code>residual_volatility</code></td>
+      <td>Volatility after removing market beta</td>
+    </tr>
+    <tr>
+      <td>Downside Risk</td>
+      <td><code>downside_risk</code></td>
+      <td>Volatility of negative daily returns</td>
+    </tr>
+    <tr>
+      <td>Prospect</td>
+      <td><code>prospect</code></td>
+      <td>Upside skew and drawdown profile</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><strong>Liquidity and Positioning</strong></td>
+      <td>Liquidity</td>
+      <td><code>liquidity</code></td>
+      <td>Log average dollar volume</td>
+    </tr>
+    <tr>
+      <td>Short Interest</td>
+      <td><code>short_interest</code></td>
+      <td>Short interest scaled by shares</td>
+    </tr>
+    <tr>
+      <td rowspan="4"><strong>Value and Yield</strong></td>
+      <td>Value</td>
+      <td><code>value</code></td>
+      <td>Book equity divided by market value</td>
+    </tr>
+    <tr>
+      <td>Earnings Yield</td>
+      <td><code>earnings_yield</code></td>
+      <td>Net income divided by market value</td>
+    </tr>
+    <tr>
+      <td>Forward Earnings Yield</td>
+      <td><code>forward_earnings_yield</code></td>
+      <td>Forward net-income estimate divided by market value</td>
+    </tr>
+    <tr>
+      <td>Dividend Yield</td>
+      <td><code>dividend_yield</code></td>
+      <td>Trailing dividends divided by price</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><strong>Growth</strong></td>
+      <td>Growth</td>
+      <td><code>growth</code></td>
+      <td>Revenue and earnings growth</td>
+    </tr>
+    <tr>
+      <td>Forward Growth</td>
+      <td><code>forward_growth</code></td>
+      <td>Forward revenue and earnings growth</td>
+    </tr>
+    <tr>
+      <td rowspan="5"><strong>Quality</strong></td>
+      <td>Profitability</td>
+      <td><code>profitability</code></td>
+      <td>Net income divided by assets</td>
+    </tr>
+    <tr>
+      <td>Gross Profitability</td>
+      <td><code>gross_profitability</code></td>
+      <td>Gross profit divided by assets</td>
+    </tr>
+    <tr>
+      <td>Earnings Quality</td>
+      <td><code>earnings_quality</code></td>
+      <td>Cash-flow quality of earnings</td>
+    </tr>
+    <tr>
+      <td>Earnings Variability</td>
+      <td><code>earnings_variability</code></td>
+      <td>Variability of recent quarterly earnings</td>
+    </tr>
+    <tr>
+      <td>Capital Discipline</td>
+      <td><code>investment_quality</code></td>
+      <td>Low asset growth, low capex intensity, buybacks, and low issuance</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><strong>Balance Sheet</strong></td>
+      <td>Leverage</td>
+      <td><code>leverage</code></td>
+      <td>Liabilities divided by assets</td>
+    </tr>
+    <tr>
+      <td>Asset Growth</td>
+      <td><code>investment</code></td>
+      <td>Asset growth from latest filing data</td>
+    </tr>
+    <tr>
+      <td rowspan="2"><strong>Classification</strong></td>
+      <td>Sector</td>
+      <td><code>sector:*</code></td>
+      <td>Sector membership</td>
+    </tr>
+    <tr>
+      <td>Industry</td>
+      <td><code>industry:*</code></td>
+      <td>Industry membership</td>
+    </tr>
+    <tr>
+      <td><strong>Analyst</strong></td>
+      <td>Analyst Sentiment</td>
+      <td><code>sentiment</code></td>
+      <td>Time-decayed analyst recommendation score</td>
+    </tr>
+  </tbody>
+</table>
+
+`market` is estimated inside the factor-return model. The remaining scalar,
+sector, and industry factors are ticker-level exposures.
+
 ## CLI Usage
 
 ```bash
@@ -109,7 +296,7 @@ NVDA,300000
 
 OpenFactor normalizes by gross exposure into signed weights, so the absolute
 book size does not change percentage risk. The Python `portfolio_report` API
-above takes those weights directly in an `allocation` column.
+takes the same dollar `value` column (or an `allocation` weights column) directly.
 
 The CLI opens an interactive [Textual](https://textual.textualize.io) terminal
 that uses SPY as the default return benchmark when public index files are
@@ -346,185 +533,6 @@ Institutions can also pass their own client with a
 path for private experiments if they want write-back without OpenFactor
 maintainer credentials; the default shared cache is a public read-only object
 for normal users.
-
-## Factor Coverage
-
-<table>
-  <thead>
-    <tr>
-      <th>Family</th>
-      <th>Factor</th>
-      <th>Internal Name</th>
-      <th>Construction</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td rowspan="2"><strong>Market</strong></td>
-      <td>Market</td>
-      <td><code>market</code></td>
-      <td>Benchmark market leg; SPY/S&amp;P 500 in the public default snapshot</td>
-    </tr>
-    <tr>
-      <td>Beta</td>
-      <td><code>beta</code></td>
-      <td>Sensitivity to broad market returns</td>
-    </tr>
-    <tr>
-      <td rowspan="2"><strong>Size</strong></td>
-      <td>Size</td>
-      <td><code>size</code></td>
-      <td>Log market capitalization</td>
-    </tr>
-    <tr>
-      <td>Mid-Cap</td>
-      <td><code>mid_cap</code></td>
-      <td>Nonlinear size exposure</td>
-    </tr>
-    <tr>
-      <td rowspan="5"><strong>Momentum</strong></td>
-      <td>Momentum</td>
-      <td><code>momentum</code></td>
-      <td>12-month return skipping the most recent month</td>
-    </tr>
-    <tr>
-      <td>Industry Momentum</td>
-      <td><code>industry_momentum</code></td>
-      <td>Recent momentum of industry peers</td>
-    </tr>
-    <tr>
-      <td>Seasonality</td>
-      <td><code>seasonality</code></td>
-      <td>Same-month historical return tendency</td>
-    </tr>
-    <tr>
-      <td>Long-Term Reversal</td>
-      <td><code>long_term_reversal</code></td>
-      <td>Negative return from the prior long-horizon window</td>
-    </tr>
-    <tr>
-      <td>Short-Term Reversal</td>
-      <td><code>short_term_reversal</code></td>
-      <td>Negative recent one-month return</td>
-    </tr>
-    <tr>
-      <td rowspan="3"><strong>Volatility</strong></td>
-      <td>Residual Volatility</td>
-      <td><code>residual_volatility</code></td>
-      <td>Volatility after removing market beta</td>
-    </tr>
-    <tr>
-      <td>Downside Risk</td>
-      <td><code>downside_risk</code></td>
-      <td>Volatility of negative daily returns</td>
-    </tr>
-    <tr>
-      <td>Prospect</td>
-      <td><code>prospect</code></td>
-      <td>Upside skew and drawdown profile</td>
-    </tr>
-    <tr>
-      <td rowspan="2"><strong>Liquidity and Positioning</strong></td>
-      <td>Liquidity</td>
-      <td><code>liquidity</code></td>
-      <td>Log average dollar volume</td>
-    </tr>
-    <tr>
-      <td>Short Interest</td>
-      <td><code>short_interest</code></td>
-      <td>Short interest scaled by shares</td>
-    </tr>
-    <tr>
-      <td rowspan="4"><strong>Value and Yield</strong></td>
-      <td>Value</td>
-      <td><code>value</code></td>
-      <td>Book equity divided by market value</td>
-    </tr>
-    <tr>
-      <td>Earnings Yield</td>
-      <td><code>earnings_yield</code></td>
-      <td>Net income divided by market value</td>
-    </tr>
-    <tr>
-      <td>Forward Earnings Yield</td>
-      <td><code>forward_earnings_yield</code></td>
-      <td>Forward net-income estimate divided by market value</td>
-    </tr>
-    <tr>
-      <td>Dividend Yield</td>
-      <td><code>dividend_yield</code></td>
-      <td>Trailing dividends divided by price</td>
-    </tr>
-    <tr>
-      <td rowspan="2"><strong>Growth</strong></td>
-      <td>Growth</td>
-      <td><code>growth</code></td>
-      <td>Revenue and earnings growth</td>
-    </tr>
-    <tr>
-      <td>Forward Growth</td>
-      <td><code>forward_growth</code></td>
-      <td>Forward revenue and earnings growth</td>
-    </tr>
-    <tr>
-      <td rowspan="5"><strong>Quality</strong></td>
-      <td>Profitability</td>
-      <td><code>profitability</code></td>
-      <td>Net income divided by assets</td>
-    </tr>
-    <tr>
-      <td>Gross Profitability</td>
-      <td><code>gross_profitability</code></td>
-      <td>Gross profit divided by assets</td>
-    </tr>
-    <tr>
-      <td>Earnings Quality</td>
-      <td><code>earnings_quality</code></td>
-      <td>Cash-flow quality of earnings</td>
-    </tr>
-    <tr>
-      <td>Earnings Variability</td>
-      <td><code>earnings_variability</code></td>
-      <td>Variability of recent quarterly earnings</td>
-    </tr>
-    <tr>
-      <td>Capital Discipline</td>
-      <td><code>investment_quality</code></td>
-      <td>Low asset growth, low capex intensity, buybacks, and low issuance</td>
-    </tr>
-    <tr>
-      <td rowspan="2"><strong>Balance Sheet</strong></td>
-      <td>Leverage</td>
-      <td><code>leverage</code></td>
-      <td>Liabilities divided by assets</td>
-    </tr>
-    <tr>
-      <td>Asset Growth</td>
-      <td><code>investment</code></td>
-      <td>Asset growth from latest filing data</td>
-    </tr>
-    <tr>
-      <td rowspan="2"><strong>Classification</strong></td>
-      <td>Sector</td>
-      <td><code>sector:*</code></td>
-      <td>Sector membership</td>
-    </tr>
-    <tr>
-      <td>Industry</td>
-      <td><code>industry:*</code></td>
-      <td>Industry membership</td>
-    </tr>
-    <tr>
-      <td><strong>Analyst</strong></td>
-      <td>Analyst Sentiment</td>
-      <td><code>sentiment</code></td>
-      <td>Time-decayed analyst recommendation score</td>
-    </tr>
-  </tbody>
-</table>
-
-`market` is estimated inside the factor-return model. The remaining scalar,
-sector, and industry factors are ticker-level exposures.
 
 ## Model Methodology
 
