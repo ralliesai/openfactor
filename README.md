@@ -97,14 +97,19 @@ can use.
 openfactor --universe openfactor-us1000 --portfolio portfolio.csv
 ```
 
-`portfolio.csv`:
+`portfolio.csv` lists the **dollar value** held in each name (negative for a
+short):
 
 ```csv
-ticker,allocation
-AAPL,0.40
-MSFT,0.30
-NVDA,0.30
+ticker,value
+AAPL,400000
+MSFT,300000
+NVDA,300000
 ```
+
+OpenFactor normalizes by gross exposure into signed weights, so the absolute
+book size does not change percentage risk. The Python `portfolio_report` API
+above takes those weights directly in an `allocation` column.
 
 The CLI opens an interactive [Textual](https://textual.textualize.io) terminal
 that uses SPY as the default return benchmark when public index files are
@@ -580,10 +585,12 @@ portfolio level to give factor, idiosyncratic, and total risk.
 
 ### Benchmark and active risk
 
-The report carries public index benchmark files for SPY, QQQ, and IWM outside
-the stock factor universe. Return attribution uses **S&P 500 via SPY** as the
-default benchmark return when `index_returns.csv` is present, so the headline is
-SPY benchmark return plus active return equals portfolio return.
+The report carries public index and ETF benchmark files outside the stock factor
+universe: broad-market and size proxies (SPY, QQQ, IWM, IJH, IJR), the eleven
+sector SPDRs, and a set of style/factor ETFs (momentum, value, quality,
+volatility, dividend, and growth). Return attribution uses **S&P 500 via SPY** as
+the default benchmark return when `index_returns.csv` is present, so the headline
+is SPY benchmark return plus active return equals portfolio return.
 
 `openfactor-us1000` is the stock universe and public dataset namespace. It is not
 used as the return benchmark. When SPY returns are available, the model pins the
@@ -631,7 +638,7 @@ calibration (bias statistics are future work).
 
 On an average day the model explains roughly **64% of the cross-sectional
 dispersion of stock returns** across market, sector, industry, and style factors.
-The R² is market-cap weighted (consistent with the WLS fit) and measured around
+The R² is weighted consistently with the WLS fit and measured around
 the cap-weighted mean return, so it reflects dispersion explained *relative to the
 market* and is not inflated by large index moves. It is a raw, in-sample fit over
 the latest 252 trading days (~1 year, a single market regime), and the

@@ -1,6 +1,5 @@
 import argparse
 
-import numpy as np
 import pandas as pd
 
 from openfactor.io.snapshot import load_snapshot
@@ -48,26 +47,35 @@ def parse_args():
 
 
 def load_portfolio(path):
-    """Load ticker allocations from a CSV file.
+    """Load a dollar-valued portfolio from a CSV file.
+
+    The file lists the dollar value held in each name (negative for a short).
+    OpenFactor normalizes by gross exposure (sum of absolute values) into the
+    signed weights the model uses, so the absolute book size does not change
+    percentage risk — a $1M and a $10M book of the same shape report alike.
 
     Example input:
-        ticker,allocation
-        AAPL,0.30
+        ticker,value
+        AAPL,400000
+        MSFT,300000
+        NVDA,300000
 
     Example output:
-        one row with ticker="AAPL" and allocation=0.30.
+        rows with allocation 0.40, 0.30, 0.30 (gross-normalized weights).
     """
     portfolio = pd.read_csv(path)
-    missing = {"ticker", "allocation"} - set(portfolio.columns)
+    missing = {"ticker", "value"} - set(portfolio.columns)
     if missing:
         raise ValueError(f"portfolio missing columns: {sorted(missing)}")
 
-    portfolio = portfolio[["ticker", "allocation"]].copy()
+    portfolio = portfolio[["ticker", "value"]].copy()
     portfolio["ticker"] = portfolio["ticker"].astype(str)
-    portfolio["allocation"] = pd.to_numeric(portfolio["allocation"])
-    if not np.isclose(portfolio["allocation"].sum(), 1.0):
-        raise ValueError("portfolio allocation must sum to 1.0")
-    return portfolio
+    portfolio["value"] = pd.to_numeric(portfolio["value"])
+    gross = portfolio["value"].abs().sum()
+    if not gross > 0:
+        raise ValueError("portfolio gross value must be positive")
+    portfolio["allocation"] = portfolio["value"] / gross
+    return portfolio[["ticker", "allocation"]]
 
 
 if __name__ == "__main__":
