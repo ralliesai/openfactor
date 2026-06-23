@@ -47,6 +47,10 @@ def cached_event_history(
         dividend cache checked through Friday fetches Saturday-Tuesday only.
     """
     tickers = clean_tickers(tickers)
+    if previous is None:
+        LOGGER.info("%s cache miss tickers=%s reason=no_previous", label, len(tickers))
+        return fetch(tickers, start_date, end_date)
+
     previous = filter_dated_rows(previous, tickers, start_date, end_date, date_column)
     if cache_date is None:
         LOGGER.info("%s cache miss tickers=%s reason=no_watermark", label, len(tickers))
@@ -84,6 +88,9 @@ def missing_earnings_tickers(fundamentals, tickers, dates, previous=None):
     rows["as_of_date"] = pd.to_datetime(rows["as_of_date"]).dt.date.astype(str)
     requested_dates = {pd.to_datetime(date).date().isoformat() for date in dates}
     rows = rows[rows["as_of_date"].isin(requested_dates)]
+    if "accession_no" not in rows:
+        return sorted(set(rows["ticker"]) & set(tickers))
+
     missing = []
     for ticker, group in rows.groupby("ticker"):
         if ticker not in tickers:
