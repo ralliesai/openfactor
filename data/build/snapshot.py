@@ -333,8 +333,11 @@ class DatasetBuilder:
         if sec_reference.empty:
             return reference
         shared = [column for column in reference.columns if column in sec_reference.columns and column != "ticker"]
-        reference = reference.drop(columns=shared, errors="ignore")
-        return reference.merge(sec_reference, on="ticker", how="left")
+        frame = reference.merge(sec_reference, on="ticker", how="left", suffixes=("", "_sec"))
+        for column in shared:
+            sec_column = f"{column}_sec"
+            frame[column] = frame[sec_column].combine_first(frame[column])
+        return frame.drop(columns=[f"{column}_sec" for column in shared], errors="ignore")
 
     def market_cap_weights(self, reference):
         """Return market-cap weights indexed by ticker.

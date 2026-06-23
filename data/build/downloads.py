@@ -173,7 +173,7 @@ class ProviderDownloader:
         self.log_report(rows, "FMP analyst estimates")
         return self.concat_or_empty([frame for _, frame in rows])
 
-    def sec_history(self, tickers, dates):
+    def sec_history(self, tickers, dates, allow_empty=False):
         """Download daily point-in-time SEC rows from SEC-API.
 
         Example:
@@ -190,6 +190,8 @@ class ProviderDownloader:
         self.log_report(rows, "SEC daily")
         frame = self.concat_or_empty([frame for _, frame in rows])
         if frame.empty:
+            if allow_empty and not self.download_errors(rows):
+                return frame
             raise ValueError("no SEC daily rows")
         return frame
 

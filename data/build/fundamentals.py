@@ -65,7 +65,7 @@ class FundamentalHistory:
         fresh = []
         for wanted_dates, wanted_tickers in grouped_missing(missing):
             LOGGER.info("SEC daily cache miss tickers=%s dates=%s", len(wanted_tickers), len(wanted_dates))
-            fresh.append(self.downloader.sec_history(wanted_tickers, wanted_dates))
+            fresh.append(self.downloader.sec_history(wanted_tickers, wanted_dates, allow_empty=True))
         return requested_rows(pd.concat([cached] + fresh, ignore_index=True), tickers, dates)
 
     def carried_missing_rows(self, frame, missing):
