@@ -32,10 +32,10 @@ def add_factor_inputs(
     frame["growth"] = growth_values(frame)
     frame = frame.join(industry_momentum_values(frame, matrix))
     frame = frame.join(analyst_sentiment_values(frame, analyst_ratings))
-    frame = frame.merge(
+    frame = merge_input_columns(
+        frame,
         finnhub_inputs(finnhub, frame[["ticker", "as_of_date"]]),
-        on=["ticker", "as_of_date"],
-        how="left",
+        ["earnings_quality", "earnings_variability"],
     )
     frame["investment_quality"] = investment_quality(frame)
     frame = merge_forward_inputs(frame, forward)
@@ -78,6 +78,15 @@ def merge_forward_inputs(frame, inputs):
     Example:
         new rows overwrite blank forward estimate cells for the same ticker/date.
     """
+    return merge_input_columns(frame, inputs, FORWARD_COLUMNS[2:])
+
+
+def merge_input_columns(frame, inputs, columns):
+    """Attach sparse computed inputs without erasing cached values.
+
+    Example:
+        new earnings_quality fills blank rows while carried values stay intact.
+    """
     if inputs.empty:
         return frame
     rows = inputs.copy()
@@ -85,7 +94,7 @@ def merge_forward_inputs(frame, inputs):
     rows["as_of_date"] = pd.to_datetime(rows["as_of_date"]).dt.date.astype(str)
     rows = rows.drop_duplicates(["ticker", "as_of_date"], keep="last")
     frame = frame.merge(rows, on=["ticker", "as_of_date"], how="left", suffixes=("", "_new"))
-    for column in FORWARD_COLUMNS[2:]:
+    for column in columns:
         new = f"{column}_new"
         if new in frame:
             frame[column] = frame[new].combine_first(frame.get(column))
@@ -101,8 +110,6 @@ DERIVED_COLUMNS = [
     "industry_momentum_observations",
     "analyst_sentiment",
     "analyst_sentiment_observations",
-    "earnings_quality",
-    "earnings_variability",
     "investment_quality",
     "forward_earnings_yield",
     "forward_earnings_yield_observations",

@@ -14,6 +14,15 @@ from data.build.calendar import default_as_of_date
 from data.build.downloads import ProviderDownloader, years_start
 from data.build.factor_inputs import add_factor_inputs, year_ago
 from data.build.fundamentals import FundamentalHistory
+from data.build.input_cache import (
+    cached_event_history,
+    cached_price_history,
+    concat_cached_rows,
+    filter_ticker_rows,
+    max_date,
+    missing_earnings_tickers,
+    ticker_set,
+)
 from data.build.quality import (
     validate_fundamental_share_sources,
     validate_market_cap_formula,
@@ -75,6 +84,9 @@ class BuildResult:
     reference: pd.DataFrame
     fundamentals: pd.DataFrame
     index_prices: pd.DataFrame = None
+    dividends: pd.DataFrame = None
+    short_interest: pd.DataFrame = None
+    finnhub: pd.DataFrame = None
 
 
 class DatasetBuilder:
@@ -95,6 +107,11 @@ class DatasetBuilder:
         universe_name=UNIVERSE_NAME,
         downloader=None,
         previous_fundamentals=None,
+        previous_prices=None,
+        previous_index_prices=None,
+        previous_dividends=None,
+        previous_short_interest=None,
+        previous_finnhub=None,
     ):
         self.as_of_date = as_of_date or default_as_of_date()
         self.universe_limit = universe_limit
@@ -104,6 +121,11 @@ class DatasetBuilder:
         self.universe_name = universe_name
         self.downloader = downloader or ProviderDownloader(workers, sec_workers)
         self.previous_fundamentals = previous_fundamentals
+        self.previous_prices = previous_prices
+        self.previous_index_prices = previous_index_prices
+        self.previous_dividends = previous_dividends
+        self.previous_short_interest = previous_short_interest
+        self.previous_finnhub = previous_finnhub
 
     def build(self):
         """Build one complete dataset.
@@ -120,8 +142,8 @@ class DatasetBuilder:
         )
         start_date = price_start_date(self.as_of_date)
         tickers = self.tickers or self.model_universe()
-        prices = self.downloader.prices(tickers, start_date, self.as_of_date)
-        index_prices = self.downloader.index_prices(DEFAULT_INDEX_TICKERS, start_date, self.as_of_date)
+        prices = self.cached_prices(tickers, start_date, self.as_of_date)
+        index_prices = self.cached_index_prices(DEFAULT_INDEX_TICKERS, start_date, self.as_of_date)
         matrix = price_matrix(prices, require_volume=True)
         LOGGER.info(
             "prices ready rows=%s tickers=%s dates=%s",
@@ -139,14 +161,19 @@ class DatasetBuilder:
         ).rows(matrix.tickers, sec_dates)
         validate_fundamental_share_sources(fundamentals)
         fundamentals = self.with_daily_market_caps(fundamentals, prices)
+        dividends = self.cached_dividends(matrix.tickers, start_date, self.as_of_date)
+        short_interest = self.cached_short_interest(matrix.tickers, start_date, self.as_of_date)
+        finnhub = self.cached_finnhub(matrix.tickers, fundamentals, sec_dates)
+        analyst_ratings = self.cached_analyst_ratings(matrix.tickers, start_date, self.as_of_date)
+        analyst_estimates = self.cached_analyst_estimates(matrix.tickers)
         fundamentals = add_factor_inputs(
             fundamentals,
             matrix,
-            self.downloader.dividends(matrix.tickers, start_date, self.as_of_date),
-            self.downloader.short_interest(matrix.tickers, start_date, self.as_of_date),
-            self.downloader.finnhub_reported(matrix.tickers),
-            self.downloader.analyst_ratings(matrix.tickers),
-            self.downloader.analyst_estimates(matrix.tickers),
+            dividends,
+            short_interest,
+            finnhub,
+            analyst_ratings,
+            analyst_estimates,
             sec_dates,
         )
         LOGGER.info(
@@ -158,9 +185,29 @@ class DatasetBuilder:
             reference,
             self.reference_as_of(fundamentals, matrix.dates[-1]),
         )
-        return self.result_from_ready_inputs(matrix, prices, current_reference, fundamentals, index_prices=index_prices)
+        return self.result_from_ready_inputs(
+            matrix,
+            prices,
+            current_reference,
+            fundamentals,
+            index_prices=index_prices,
+            dividends=dividends,
+            short_interest=short_interest,
+            finnhub=finnhub,
+        )
 
-    def result_from_ready_inputs(self, matrix, prices, current_reference, fundamentals, metadata=None, index_prices=None):
+    def result_from_ready_inputs(
+        self,
+        matrix,
+        prices,
+        current_reference,
+        fundamentals,
+        metadata=None,
+        index_prices=None,
+        dividends=None,
+        short_interest=None,
+        finnhub=None,
+    ):
         """Return a complete BuildResult from model-ready inputs.
 
         Example:
@@ -224,7 +271,16 @@ class DatasetBuilder:
             len(snapshot.universe),
             len(snapshot.factor_returns.columns),
         )
-        return BuildResult(snapshot, prices, self.reference_file(current_reference), fundamentals, index_prices)
+        return BuildResult(
+            snapshot,
+            prices,
+            self.reference_file(current_reference),
+            fundamentals,
+            index_prices,
+            dividends,
+            short_interest,
+            finnhub,
+        )
 
     def model_universe(self):
         """Return top US common stocks by current market cap.
@@ -252,6 +308,101 @@ class DatasetBuilder:
             len(tickers),
         )
         return tickers
+
+    def cached_prices(self, tickers, start_date, end_date):
+        """Return cached price history extended through the build date.
+
+        Example:
+            Friday cache plus Tuesday build downloads only Monday-Tuesday bars.
+        """
+        return cached_price_history(
+            self.previous_prices,
+            tickers,
+            start_date,
+            end_date,
+            self.downloader.prices,
+            "prices",
+        )
+
+    def cached_index_prices(self, tickers, start_date, end_date):
+        """Return cached index price history extended through the build date."""
+        return cached_price_history(
+            self.previous_index_prices,
+            tickers,
+            start_date,
+            end_date,
+            self.downloader.index_prices,
+            "index prices",
+        )
+
+    def cached_dividends(self, tickers, start_date, end_date):
+        """Return dividend history extended from the prior checked date."""
+        return cached_event_history(
+            self.previous_dividends,
+            self.previous_price_tickers(),
+            self.previous_cache_date(),
+            tickers,
+            start_date,
+            end_date,
+            "ex_dividend_date",
+            self.downloader.dividends,
+            ["ticker", "ex_dividend_date"],
+            "dividends",
+        )
+
+    def cached_short_interest(self, tickers, start_date, end_date):
+        """Return short-interest history extended from the prior checked date."""
+        return cached_event_history(
+            self.previous_short_interest,
+            self.previous_price_tickers(),
+            self.previous_cache_date(),
+            tickers,
+            start_date,
+            end_date,
+            "settlement_date",
+            self.downloader.short_interest,
+            ["ticker", "settlement_date"],
+            "short interest",
+        )
+
+    def cached_finnhub(self, tickers, fundamentals, dates):
+        """Return Finnhub rows only for tickers missing earnings inputs.
+
+        Example:
+            carried AAPL earnings inputs skip Finnhub; new MSFT filing refreshes MSFT.
+        """
+        previous = filter_ticker_rows(self.previous_finnhub, tickers)
+        refresh = missing_earnings_tickers(fundamentals, tickers, dates, self.previous_fundamentals)
+        if not refresh:
+            LOGGER.info("Finnhub reported financials cache used tickers=%s refresh=0", len(tickers))
+            return previous
+        LOGGER.info("Finnhub reported financials cache miss tickers=%s", len(refresh))
+        fresh = self.downloader.finnhub_reported(refresh)
+        return concat_cached_rows(previous, fresh, ["ticker", "accession_no"])
+
+    def cached_analyst_ratings(self, tickers, start_date, end_date):
+        """Return analyst-rating events.
+
+        Example:
+            current TipRanks endpoint has no global since cursor, so this remains a full pull.
+        """
+        return self.downloader.analyst_ratings(tickers)
+
+    def cached_analyst_estimates(self, tickers):
+        """Return analyst-estimate rows.
+
+        Example:
+            current FMP endpoint has no update cursor, so this remains a full pull.
+        """
+        return self.downloader.analyst_estimates(tickers)
+
+    def previous_cache_date(self):
+        """Return the last private price date used as provider-cache watermark."""
+        return max_date(self.previous_prices, "date")
+
+    def previous_price_tickers(self):
+        """Return tickers covered by the previous private price cache."""
+        return ticker_set(self.previous_prices)
 
     def reference_dates(self, matrix):
         """Return model dates that need point-in-time fundamentals.
@@ -509,7 +660,15 @@ def private_tables(result):
     """
     return [
         ("prices", sort_rows(result.prices, ["ticker", "date"]), "prices.csv"),
+        ("index_prices", sort_rows(result.index_prices, ["ticker", "date"]), "index_prices.csv"),
         ("reference", sort_rows(result.reference, ["ticker"]), "reference.csv"),
+        ("dividends", sort_rows(result.dividends, ["ticker", "ex_dividend_date"]), "dividends.csv"),
+        (
+            "short_interest",
+            sort_rows(result.short_interest, ["ticker", "settlement_date"]),
+            "short_interest.csv",
+        ),
+        ("finnhub_reported", sort_rows(result.finnhub, ["ticker", "accepted_date"]), "reported.csv"),
         ("fundamentals_pit", fundamentals_file(result.fundamentals), "fundamentals.csv"),
         ("fundamentals_pit", fundamentals_audit_file(result.fundamentals), "audit.csv"),
     ]
@@ -521,6 +680,8 @@ def sort_rows(frame, columns):
     Example:
         sort_rows(prices, ["ticker", "date"]) groups each ticker's prices together.
     """
+    if frame is None:
+        return pd.DataFrame()
     columns = [column for column in columns if column in frame]
     if not columns:
         return frame

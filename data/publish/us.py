@@ -39,7 +39,11 @@ PUBLIC_FILES = [
 ]
 PRIVATE_FILES = [
     ("prices", "prices.csv"),
+    ("index_prices", "index_prices.csv"),
     ("reference", "reference.csv"),
+    ("dividends", "dividends.csv"),
+    ("short_interest", "short_interest.csv"),
+    ("finnhub_reported", "reported.csv"),
     ("fundamentals_pit", "fundamentals.csv"),
     ("fundamentals_pit", "audit.csv"),
 ]
@@ -99,6 +103,11 @@ class UsPublisher:
             sec_workers=self.config.sec_workers,
             downloader=self.downloader,
             previous_fundamentals=self.previous_fundamentals(),
+            previous_prices=self.previous_input("prices", "prices.csv"),
+            previous_index_prices=self.previous_input("index_prices", "index_prices.csv"),
+            previous_dividends=self.previous_input("dividends", "dividends.csv"),
+            previous_short_interest=self.previous_input("short_interest", "short_interest.csv"),
+            previous_finnhub=self.previous_input("finnhub_reported", "reported.csv"),
         ).build()
         LOGGER.info("validating snapshot")
         validate_snapshot(result.snapshot)
@@ -148,6 +157,21 @@ class UsPublisher:
 
         frame = frame.rename(columns=TTM_TO_INTERNAL)
         print("fundamentals cache hit rows", len(frame))
+        return frame
+
+    def previous_input(self, folder, filename):
+        """Return a private latest input table when present.
+
+        Example:
+            previous_input("prices", "prices.csv") returns yesterday's price cache.
+        """
+        try:
+            frame = self.read_private_csv(f"{private_prefix(self.universe_name())}/{folder}/latest/{filename}")
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                return None
+            raise
+        LOGGER.info("%s cache hit rows=%s", folder, len(frame))
         return frame
 
     def read_latest_fundamentals(self):
