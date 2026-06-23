@@ -62,11 +62,9 @@ class FundamentalHistory:
                 LOGGER.info("SEC daily cache carried tickers=%s missing=0", len(tickers))
                 return cached
 
-        fresh = []
-        for wanted_dates, wanted_tickers in grouped_missing(missing):
-            LOGGER.info("SEC daily cache miss tickers=%s dates=%s", len(wanted_tickers), len(wanted_dates))
-            fresh.append(self.downloader.sec_history(wanted_tickers, wanted_dates, allow_empty=True))
-        return requested_rows(pd.concat([cached] + fresh, ignore_index=True), tickers, dates)
+        LOGGER.info("SEC daily cache miss tickers=%s", len(missing))
+        fresh = self.downloader.sec_history_by_ticker_dates(missing, allow_empty=True)
+        return requested_rows(pd.concat([cached, fresh], ignore_index=True), tickers, dates)
 
     def carried_missing_rows(self, frame, missing):
         """Carry every missing PIT date when no newer filing exists.
@@ -242,18 +240,6 @@ def missing_dates_by_ticker(frame, tickers, dates):
         for ticker in tickers
         if any((ticker, date) not in present for date in dates)
     }
-
-
-def grouped_missing(missing):
-    """Group tickers that need the same missing dates.
-
-    Example:
-        two tickers missing the same year-ago dates are downloaded together.
-    """
-    groups = {}
-    for ticker, dates in missing.items():
-        groups.setdefault(tuple(dates), []).append(ticker)
-    return [(list(dates), tickers) for dates, tickers in groups.items()]
 
 
 def next_day(value):

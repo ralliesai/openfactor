@@ -372,7 +372,7 @@ class DatasetBuilder:
             carried AAPL earnings inputs skip Finnhub; new MSFT filing refreshes MSFT.
         """
         previous = filter_ticker_rows(self.previous_finnhub, tickers)
-        refresh = missing_earnings_tickers(fundamentals, tickers, dates, self.previous_fundamentals)
+        refresh = missing_earnings_tickers(fundamentals, tickers, dates, self.previous_fundamentals, previous)
         if not refresh:
             LOGGER.info("Finnhub reported financials cache used tickers=%s refresh=0", len(tickers))
             return previous
@@ -386,6 +386,7 @@ class DatasetBuilder:
         Example:
             current TipRanks endpoint has no global since cursor, so this remains a full pull.
         """
+        LOGGER.info("TipRanks analyst ratings full refresh tickers=%s reason=no_incremental_cursor", len(tickers))
         return self.downloader.analyst_ratings(tickers)
 
     def cached_analyst_estimates(self, tickers):
@@ -394,6 +395,7 @@ class DatasetBuilder:
         Example:
             current FMP endpoint has no update cursor, so this remains a full pull.
         """
+        LOGGER.info("FMP analyst estimates full refresh tickers=%s reason=no_incremental_cursor", len(tickers))
         return self.downloader.analyst_estimates(tickers)
 
     def previous_cache_date(self):

@@ -181,12 +181,34 @@ class ProviderDownloader:
             returns the filing metrics known on that date.
         """
         dates = sorted({pd.to_datetime(day).date() for day in dates})
+        return self.sec_history_by_ticker_dates(
+            {ticker: dates for ticker in tickers},
+            allow_empty=allow_empty,
+        )
+
+    def sec_history_by_ticker_dates(self, ticker_dates, allow_empty=False):
+        """Download daily SEC rows when each ticker needs its own dates.
+
+        Example:
+            {"AAPL": ["2026-06-16"], "MSFT": ["2026-06-15", "2026-06-16"]}
+            runs as one SEC daily progress bar.
+        """
+        ticker_dates = {
+            str(ticker).upper(): sorted({pd.to_datetime(day).date() for day in dates})
+            for ticker, dates in ticker_dates.items()
+            if dates
+        }
+        tickers = list(ticker_dates)
         rows = self.threaded_map(
             "SEC daily",
             tickers,
-            lambda ticker: self.sec_rows(ticker, dates),
+            lambda ticker: self.sec_rows(ticker, ticker_dates[ticker]),
             self.sec_workers,
         )
+        return self.sec_history_table(rows, allow_empty)
+
+    def sec_history_table(self, rows, allow_empty=False):
+        """Return one SEC history table from threaded SEC results."""
         self.log_report(rows, "SEC daily")
         frame = self.concat_or_empty([frame for _, frame in rows])
         if frame.empty:

@@ -73,7 +73,7 @@ def cached_event_history(
     return filter_dated_rows(rows, tickers, start_date, end_date, date_column)
 
 
-def missing_earnings_tickers(fundamentals, tickers, dates, previous=None):
+def missing_earnings_tickers(fundamentals, tickers, dates, previous=None, reported=None):
     """Return tickers whose requested rows lack carried earnings inputs.
 
     Example:
@@ -82,7 +82,7 @@ def missing_earnings_tickers(fundamentals, tickers, dates, previous=None):
     tickers = clean_tickers(tickers)
     if fundamentals.empty:
         return []
-    previous_keys = previous_earnings_keys(previous)
+    checked_keys = previous_earnings_keys(previous) | reported_accession_keys(reported)
     rows = fundamentals.copy()
     rows["ticker"] = rows["ticker"].astype(str).str.upper()
     rows["as_of_date"] = pd.to_datetime(rows["as_of_date"]).dt.date.astype(str)
@@ -101,13 +101,13 @@ def missing_earnings_tickers(fundamentals, tickers, dates, previous=None):
         quality = pd.to_numeric(group["earnings_quality"], errors="coerce")
         variability = pd.to_numeric(group["earnings_variability"], errors="coerce")
         blank = group[quality.isna() & variability.isna()]
-        if any((row.ticker, str(row.accession_no)) not in previous_keys for row in blank.itertuples(index=False)):
+        if any((row.ticker, str(row.accession_no)) not in checked_keys for row in blank.itertuples(index=False)):
             missing.append(ticker)
     return sorted(set(missing))
 
 
 def previous_earnings_keys(previous):
-    """Return ticker/accession pairs already checked for earnings inputs."""
+    """Return ticker/accession pairs with carried earnings inputs."""
     if (
         previous is None
         or previous.empty
@@ -117,7 +117,22 @@ def previous_earnings_keys(previous):
         or "earnings_variability" not in previous
     ):
         return set()
-    rows = previous[["ticker", "accession_no"]].dropna().copy()
+    rows = previous[["ticker", "accession_no", "earnings_quality", "earnings_variability"]].dropna(
+        subset=["ticker", "accession_no"]
+    ).copy()
+    quality = pd.to_numeric(rows["earnings_quality"], errors="coerce")
+    variability = pd.to_numeric(rows["earnings_variability"], errors="coerce")
+    rows = rows[quality.notna() | variability.notna()]
+    rows["ticker"] = rows["ticker"].astype(str).str.upper()
+    rows["accession_no"] = rows["accession_no"].astype(str)
+    return set(rows[["ticker", "accession_no"]].itertuples(index=False, name=None))
+
+
+def reported_accession_keys(reported):
+    """Return ticker/accession pairs present in raw reported-financial rows."""
+    if reported is None or reported.empty or "ticker" not in reported or "accession_no" not in reported:
+        return set()
+    rows = reported[["ticker", "accession_no"]].dropna().copy()
     rows["ticker"] = rows["ticker"].astype(str).str.upper()
     rows["accession_no"] = rows["accession_no"].astype(str)
     return set(rows.itertuples(index=False, name=None))
