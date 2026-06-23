@@ -4,30 +4,57 @@ from openfactor.core.checks import require_columns
 
 
 DEFAULT_BENCHMARK_TICKER = "SPY"
-DEFAULT_INDEX_TICKERS = ("SPY", "QQQ", "IWM")
+DEFAULT_INDEX_TICKERS = (
+    "SPY", "QQQ", "IWM", "IJH", "IJR",
+    "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLB", "XLRE", "XLC",
+    "MTUM", "VLUE", "QUAL", "USMV", "SPHB", "SPLV", "IWD", "IWF", "VTV", "VUG", "VYM", "SCHD",
+)
 INDEX_COLUMNS = ["ticker", "name", "benchmark", "provider", "default_benchmark"]
 INDEX_PRICE_COLUMNS = ["date", "ticker", "open", "high", "low", "close", "volume", "vwap", "unadjusted_close"]
 INDEX_RETURN_COLUMNS = ["date", "ticker", "return"]
 
+
+def _index(name, benchmark, default_benchmark=False):
+    """Return one index/ETF metadata entry.
+
+    Example:
+        _index("SPDR S&P 500 ETF Trust", "S&P 500", True) describes the benchmark.
+    """
+    return {"name": name, "benchmark": benchmark, "provider": "Massive/Polygon", "default_benchmark": default_benchmark}
+
+
 INDEXES = {
-    "SPY": {
-        "name": "SPDR S&P 500 ETF Trust",
-        "benchmark": "S&P 500",
-        "provider": "Massive/Polygon",
-        "default_benchmark": True,
-    },
-    "QQQ": {
-        "name": "Invesco QQQ Trust",
-        "benchmark": "Nasdaq 100",
-        "provider": "Massive/Polygon",
-        "default_benchmark": False,
-    },
-    "IWM": {
-        "name": "iShares Russell 2000 ETF",
-        "benchmark": "Russell 2000",
-        "provider": "Massive/Polygon",
-        "default_benchmark": False,
-    },
+    # Broad market and size
+    "SPY": _index("SPDR S&P 500 ETF Trust", "S&P 500", True),
+    "QQQ": _index("Invesco QQQ Trust", "Nasdaq 100"),
+    "IWM": _index("iShares Russell 2000 ETF", "Russell 2000"),
+    "IJH": _index("iShares Core S&P Mid-Cap ETF", "S&P MidCap 400"),
+    "IJR": _index("iShares Core S&P Small-Cap ETF", "S&P SmallCap 600"),
+    # GICS sectors (SPDR Select Sector) — map ~1:1 to the model sector factors
+    "XLK": _index("Technology Select Sector SPDR Fund", "S&P 500 Technology"),
+    "XLF": _index("Financial Select Sector SPDR Fund", "S&P 500 Financials"),
+    "XLE": _index("Energy Select Sector SPDR Fund", "S&P 500 Energy"),
+    "XLV": _index("Health Care Select Sector SPDR Fund", "S&P 500 Health Care"),
+    "XLY": _index("Consumer Discretionary Select Sector SPDR Fund", "S&P 500 Consumer Discretionary"),
+    "XLP": _index("Consumer Staples Select Sector SPDR Fund", "S&P 500 Consumer Staples"),
+    "XLI": _index("Industrial Select Sector SPDR Fund", "S&P 500 Industrials"),
+    "XLU": _index("Utilities Select Sector SPDR Fund", "S&P 500 Utilities"),
+    "XLB": _index("Materials Select Sector SPDR Fund", "S&P 500 Materials"),
+    "XLRE": _index("Real Estate Select Sector SPDR Fund", "S&P 500 Real Estate"),
+    "XLC": _index("Communication Services Select Sector SPDR Fund", "S&P 500 Communication Services"),
+    # Style / factor proxies
+    "MTUM": _index("iShares MSCI USA Momentum Factor ETF", "USA Momentum"),
+    "VLUE": _index("iShares MSCI USA Value Factor ETF", "USA Value"),
+    "QUAL": _index("iShares MSCI USA Quality Factor ETF", "USA Quality"),
+    "USMV": _index("iShares MSCI USA Min Vol Factor ETF", "USA Minimum Volatility"),
+    "SPHB": _index("Invesco S&P 500 High Beta ETF", "S&P 500 High Beta"),
+    "SPLV": _index("Invesco S&P 500 Low Volatility ETF", "S&P 500 Low Volatility"),
+    "IWD": _index("iShares Russell 1000 Value ETF", "Russell 1000 Value"),
+    "IWF": _index("iShares Russell 1000 Growth ETF", "Russell 1000 Growth"),
+    "VTV": _index("Vanguard Value ETF", "CRSP US Large Cap Value"),
+    "VUG": _index("Vanguard Growth ETF", "CRSP US Large Cap Growth"),
+    "VYM": _index("Vanguard High Dividend Yield ETF", "FTSE High Dividend Yield"),
+    "SCHD": _index("Schwab U.S. Dividend Equity ETF", "Dow Jones U.S. Dividend 100"),
 }
 
 
