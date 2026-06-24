@@ -20,7 +20,7 @@ def main():
         portfolio = load_portfolio(args.portfolio)
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
-    print(f"loading {args.universe} @ {args.snapshot} (with exposure panel) …")
+    print(f"loading {args.universe} @ {args.snapshot} …")
     snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
     semantic = run_semantic(portfolio, snapshot) if args.semantic else None
     report = tui_report(portfolio, snapshot, semantic=semantic)
