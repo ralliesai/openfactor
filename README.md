@@ -70,7 +70,7 @@ report = of.portfolio_report(portfolio, snapshot)
 ```
 
 `portfolio_report` accepts a `value` column (dollar holdings, gross-normalized to
-signed weights) or an `allocation` column of model weights — both produce the
+signed weights) or an `allocation` column of model weights; both produce the
 same tables.
 
 ### Factor Model Data
@@ -303,28 +303,28 @@ that uses SPY as the default return benchmark when public index files are
 present, keeps ex-ante tracking error in model-risk space, and leads with the
 decision numbers:
 
-- **Headline cards** — total risk, tracking error, one-day VaR (95%), ex-ante
+- **Headline cards**: total risk, tracking error, one-day VaR (95%), ex-ante
   beta to the model risk proxy, and the idiosyncratic share of tracking
   error.
-- **Portfolio risk** — the current absolute risk decomposition: common factor,
+- **Portfolio risk**: the current absolute risk decomposition: common factor,
   market, style, sector, industry, idiosyncratic, and total risk.
-- **Active risk** — every factor's active exposure and its **% of the
+- **Active risk**: every factor's active exposure and its **% of the
   tracking-error budget**, sorted, with annualized contribution-to-tracking-error
   shown next to the share. Diversifying factors (those that *reduce* tracking
   error through covariance) are shown in green.
-- **Idiosyncratic risk by name** — which holdings drive idiosyncratic risk,
+- **Idiosyncratic risk by name**: which holdings drive idiosyncratic risk,
   with top-name concentration and the effective number of names.
-- **Active return attribution** — benchmark return + active return = portfolio
+- **Active return attribution**: benchmark return + active return = portfolio
   return for the latest trading day. The panel has two separate tables:
   **Active return reconciliation** for style, sector, industry, idiosyncratic
   return, and total active return; and **Top active return contributors** for
   ranked factor details with contribution, `% Active`, and `TE Share` side by
   side. When enough `--track` history exists, the same panel adds multi-day
   attribution buttons for the stored holding path.
-- **Idiosyncratic return by name** — the holdings that drove the name-level
+- **Idiosyncratic return by name**: the holdings that drove the name-level
   return line, adjusted so the name rows reconcile to the benchmark-relative
   idiosyncratic return shown in the active-return table.
-- **Parametric loss & beta** — normal one-day VaR (95% / 99%, total and active),
+- **Parametric loss & beta**: normal one-day VaR (95% / 99%, total and active),
   ex-ante beta, realized beta when a `--track` history exists, and realized
   information ratio. Historical and macro scenarios are omitted until the
   snapshot ships a real scenario library.
@@ -395,7 +395,7 @@ for what it finds and the equivalent Python API.
 
 The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
 in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By
-default OpenFactor loads the latest published model — pass `--snapshot <date>`
+default OpenFactor loads the latest published model; pass `--snapshot <date>`
 for a reproducible historical run.
 
 ## Report Output
@@ -585,15 +585,15 @@ stock return = S&P 500 benchmark market + sector + industry + style factors + re
 
 The fit is built to be robust:
 
-- **Root-cap weighted (WLS)** — regression weights are √(market cap), so large,
+- **Root-cap weighted (WLS)**: regression weights are √(market cap), so large,
   liquid names anchor the fit without a handful of mega-caps dominating it.
 - **Sector returns constrained to a cap-weighted sum of zero**, so sector
   returns read as clean tilts relative to the benchmark market leg.
-- **Winsorized stock returns** — a single name's blow-up day can't distort the
+- **Winsorized stock returns**: a single name's blow-up day can't distort the
   estimates.
 - **Explicit market, sector, broad-industry, and style factors**, with
   thinly-populated industries folded out of the cross-section.
-- **Rolling and point-in-time** — re-run each day on that day's as-of exposures,
+- **Rolling and point-in-time**: re-run each day on that day's as-of exposures,
   producing a clean daily history of factor returns and per-stock residuals.
 
 The residuals are what remains after every common factor, and they drive
@@ -625,12 +625,12 @@ idiosyncratic returns around that benchmark leg.
 
 The ex-ante risk model still needs a holdings-style risk proxy. Until
 OpenFactor publishes index look-through or index factor exposures, tracking error
-and model beta use the **cap-weighted model universe** — every model constituent
-weighted by market cap — because that risk proxy ships with the model and
+and model beta use the **cap-weighted model universe** (every model constituent
+weighted by market cap) because that risk proxy ships with the model and
 needs no index license.
 
 Active exposures are the portfolio's exposures minus the risk proxy's
-(`active = portfolio − risk proxy`), and the same factor covariance and
+(`active = portfolio - risk proxy`), and the same factor covariance and
 idiosyncratic risk produce active factor risk, active idiosyncratic risk, and total
 **tracking error**. Because style exposures are standardized around the
 cap-weighted mean, the risk proxy sits near zero on every style factor: active
@@ -683,8 +683,8 @@ OpenFactor's momentum factor return tracks recognized public momentum factors:
 
 The daily correlation with Ken French is the stronger signal; the monthly AQR
 figure rests on only ~12 points and should be read as directional. OpenFactor's
-factor is *purified* — a cross-sectional regression return, orthogonal to the
-model's other factors (size, beta, sector, and the rest) — while the benchmarks
+factor is *purified*, a cross-sectional regression return orthogonal to the
+model's other factors (size, beta, sector, and the rest), while the benchmarks
 are raw sorted portfolios, so a correlation in this range is what we expect and
 confirms the factor captures momentum rather than replicating any single index.
 
@@ -693,16 +693,16 @@ confirms the factor captures momentum rather than replicating any single index.
 OpenFactor ships a clean, transparent baseline today. Planned enhancements to the
 covariance and idiosyncratic-risk estimation include:
 
-- **Eigenfactor covariance adjustment** — debias the factor covariance for use in
+- **Eigenfactor covariance adjustment**: debias the factor covariance for use in
   optimized portfolios.
-- **Volatility-regime scaling** — align forecast risk with the current market
+- **Volatility-regime scaling**: align forecast risk with the current market
   volatility level.
-- **Newey-West adjustment** — account for serial correlation in daily factor
+- **Newey-West adjustment**: account for serial correlation in daily factor
   returns.
-- **EWMA / half-life weighting** — give recent observations more weight.
-- **Bayesian shrinkage of idiosyncratic risk** — stabilize idiosyncratic estimates
+- **EWMA / half-life weighting**: give recent observations more weight.
+- **Bayesian shrinkage of idiosyncratic risk**: stabilize idiosyncratic estimates
   using observation counts.
-- **Bias-statistic calibration** — measure the model's forecast accuracy over
+- **Bias-statistic calibration**: measure the model's forecast accuracy over
   time.
 
 ## Files
