@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 import pandas as pd
 
@@ -94,15 +95,31 @@ def run_semantic(portfolio, snapshot):
     """
     if not os.getenv("OPENAI_API_KEY"):
         print(
-            "semantic discovery skipped: OPENAI_API_KEY is not set.\n"
+            "semantic discovery needs OPENAI_API_KEY, which is not set.\n"
             "  export OPENAI_API_KEY=sk-... and re-run with --semantic to enable it."
         )
+        if not confirm("Continue and show the normal report without semantic discovery?"):
+            raise SystemExit(0)
         return None
 
     from openfactor.llm import discover_semantic_factors
 
     print("running semantic residual discovery (LLM + web search) — this can take a minute …")
     return discover_semantic_factors(portfolio, snapshot)
+
+
+def confirm(question, default=False):
+    """Return a yes/no answer, defaulting when stdin is not interactive.
+
+    Example:
+        a piped or non-interactive run returns the default instead of blocking.
+    """
+    if not sys.stdin.isatty():
+        return default
+    try:
+        return input(f"{question} [y/N] ").strip().lower() in {"y", "yes"}
+    except EOFError:
+        return default
 
 
 if __name__ == "__main__":

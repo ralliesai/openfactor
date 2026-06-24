@@ -377,6 +377,22 @@ backtest and it does not run today's weights backward. The idiosyncratic return
 name-driver table switches with the selected window too, using average weight
 over the selected stored days.
 
+### Semantic residual discovery
+
+Pass `--semantic` to run LLM semantic residual discovery *before* the terminal
+opens; any accepted factors then appear in a **Semantic residual discovery**
+panel in the report:
+
+```bash
+export OPENAI_API_KEY=sk-...
+openfactor --portfolio portfolio.csv --semantic
+```
+
+It needs `OPENAI_API_KEY` (LLM + web search). Without the key, OpenFactor asks
+whether to continue with the normal report or exit, rather than running
+discovery. See [Semantic Residual Discovery](#semantic-residual-discovery) below
+for what it finds and the equivalent Python API.
+
 The terminal lives in [`tui/`](src/openfactor/tui/); the underlying analytics are
 in [`portfolio/active_risk.py`](src/openfactor/portfolio/active_risk.py). By
 default OpenFactor loads the latest published model — pass `--snapshot <date>`
@@ -457,8 +473,10 @@ result.accepted
 result.skipped
 ```
 
-Semantic discovery is a Python API (`discover_semantic_factors()`, above); it is
-not wired into the interactive terminal.
+Semantic discovery is primarily a Python API (`discover_semantic_factors()`,
+above). The terminal also runs it on demand: `openfactor --portfolio
+portfolio.csv --semantic` (needs `OPENAI_API_KEY`) runs discovery first and adds
+a **Semantic residual discovery** panel to the report.
 
 Environment:
 
