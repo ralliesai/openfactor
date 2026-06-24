@@ -7,6 +7,7 @@ import sys
 import urllib.error
 
 import pandas as pd
+from pandas.errors import EmptyDataError
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -198,7 +199,12 @@ class UsPublisher:
             key,
             return_body=True,
         )
-        return pd.read_csv(BytesIO(body))
+        if not body.strip():
+            return pd.DataFrame()
+        try:
+            return pd.read_csv(BytesIO(body))
+        except EmptyDataError:
+            return pd.DataFrame()
 
     def r2_client(self):
         """Return the configured R2 client.
