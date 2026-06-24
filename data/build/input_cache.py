@@ -7,7 +7,7 @@ import pandas as pd
 LOGGER = logging.getLogger("openfactor.build")
 
 
-def cached_price_history(previous, tickers, start_date, end_date, fetch, label):
+def cached_price_history(previous, tickers, start_date, end_date, fetch, label, min_coverage=1.0):
     """Return price rows by extending cached ticker histories.
 
     Example:
@@ -17,13 +17,13 @@ def cached_price_history(previous, tickers, start_date, end_date, fetch, label):
     previous = filter_dated_rows(previous, tickers, start_date, end_date, "date")
     if previous.empty:
         LOGGER.info("%s cache miss tickers=%s reason=no_previous", label, len(tickers))
-        return fetch(tickers, start_date, end_date)
+        return fetch(tickers, start_date, end_date, min_coverage=min_coverage)
 
     fresh = []
     groups = price_refresh_groups(previous, tickers, start_date, end_date)
     for (fetch_start, fetch_end), group_tickers in groups:
         LOGGER.info("%s cache miss tickers=%s dates=%s..%s", label, len(group_tickers), fetch_start, fetch_end)
-        fresh.append(fetch(group_tickers, fetch_start, fetch_end))
+        fresh.append(fetch(group_tickers, fetch_start, fetch_end, min_coverage=min_coverage))
     rows = concat_cached_rows(previous, concat_frames(fresh), ["ticker", "date"])
     LOGGER.info("%s cache used rows=%s tickers=%s refresh_groups=%s", label, len(rows), len(tickers), len(groups))
     return filter_dated_rows(rows, tickers, start_date, end_date, "date")

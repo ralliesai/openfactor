@@ -60,6 +60,8 @@ LOGGER = logging.getLogger("openfactor.build")
 MODEL_VERSION = "0.2.0"
 UNIVERSE_NAME = "openfactor-us1000"
 RISK_WINDOW = 252
+UNIVERSE_PRICE_BUFFER_RATIO = 0.20
+UNIVERSE_PRICE_MIN_BUFFER = 50
 REFERENCE_COLUMNS = [
     "ticker",
     "market_cap",
@@ -142,8 +144,11 @@ class DatasetBuilder:
             self.universe_limit,
         )
         start_date = price_start_date(self.as_of_date)
-        tickers = self.tickers or self.model_universe()
-        prices = self.cached_prices(tickers, start_date, self.as_of_date)
+        if self.tickers:
+            tickers = self.tickers
+            prices = self.cached_prices(tickers, start_date, self.as_of_date)
+        else:
+            tickers, prices = self.model_universe_prices(start_date)
         index_prices = self.cached_index_prices(DEFAULT_INDEX_TICKERS, start_date, self.as_of_date)
         matrix = price_matrix(prices, require_volume=True)
         LOGGER.info(
@@ -289,13 +294,7 @@ class DatasetBuilder:
         Example:
             universe_limit=1000 returns the OpenFactor US 1000 universe.
         """
-        client = MassiveClient()
-        try:
-            candidates = us_candidates(client, self.as_of_date)
-        finally:
-            client.close()
-
-        reference = self.downloader.reference(candidates, self.as_of_date, min_coverage=0.80)
+        reference = self.model_reference()
         tickers = top_market_cap_tickers(reference, self.universe_limit)
         if len(tickers) < self.universe_limit:
             raise ValueError(
@@ -303,14 +302,67 @@ class DatasetBuilder:
                 f"below requested {self.universe_limit}"
             )
         LOGGER.info(
-            "universe=%s candidates=%s selected=%s",
+            "universe=%s selected=%s",
             self.universe_name,
-            len(candidates),
             len(tickers),
         )
         return tickers
 
-    def cached_prices(self, tickers, start_date, end_date):
+    def model_reference(self):
+        """Return current US common-stock reference rows for universe ranking."""
+        client = MassiveClient()
+        try:
+            candidates = us_candidates(client, self.as_of_date)
+        finally:
+            client.close()
+
+        reference = self.downloader.reference(candidates, self.as_of_date, min_coverage=0.80)
+        LOGGER.info("universe=%s candidates=%s reference=%s", self.universe_name, len(candidates), len(reference))
+        return reference
+
+    def model_universe_prices(self, start_date):
+        """Return a full automatic universe plus price rows through the build date.
+
+        Example:
+            if one top-1000 stock has no current bar, the next priced stock replaces it.
+        """
+        reference = self.model_reference()
+        buffer = max(UNIVERSE_PRICE_MIN_BUFFER, int(self.universe_limit * UNIVERSE_PRICE_BUFFER_RATIO))
+        candidate_count = min(len(reference), self.universe_limit + buffer)
+        candidates = top_market_cap_tickers(reference, candidate_count)
+        prices = self.cached_prices(
+            candidates,
+            start_date,
+            self.as_of_date,
+            min_coverage=0.95,
+        )
+        available = price_available_tickers(prices, self.as_of_date)
+        tickers = [ticker for ticker in candidates if ticker in available][: self.universe_limit]
+        if len(tickers) < self.universe_limit:
+            missing = [ticker for ticker in candidates[: self.universe_limit] if ticker not in available]
+            raise ValueError(
+                f"universe selected {len(tickers)} price-ready tickers "
+                f"below requested {self.universe_limit}; missing_sample={missing[:10]}"
+            )
+
+        missing = [ticker for ticker in candidates[: self.universe_limit] if ticker not in available]
+        replacements = [ticker for ticker in tickers if ticker not in candidates[: self.universe_limit]]
+        LOGGER.info(
+            "universe=%s price_ready_candidates=%s selected=%s replacements=%s",
+            self.universe_name,
+            len(candidates),
+            len(tickers),
+            len(replacements),
+        )
+        if missing:
+            LOGGER.info(
+                "universe price missing_sample=%s replacement_sample=%s",
+                ", ".join(missing[:10]),
+                ", ".join(replacements[:10]),
+            )
+        return tickers, filter_ticker_rows(prices, tickers)
+
+    def cached_prices(self, tickers, start_date, end_date, min_coverage=1.0):
         """Return cached price history extended through the build date.
 
         Example:
@@ -323,6 +375,7 @@ class DatasetBuilder:
             end_date,
             self.downloader.prices,
             "prices",
+            min_coverage=min_coverage,
         )
 
     def cached_index_prices(self, tickers, start_date, end_date):
@@ -586,6 +639,27 @@ def price_start_date(as_of_date):
     """
     day = pd.to_datetime(years_start(pd.to_datetime(as_of_date).date(), 4))
     return (day - pd.Timedelta(days=10)).date().isoformat()
+
+
+def price_available_tickers(prices, as_of_date):
+    """Return tickers with a usable close and volume on the build date."""
+    if prices is None or prices.empty:
+        return set()
+    required = {"ticker", "date", "close", "volume"}
+    if not required <= set(prices.columns):
+        return set()
+
+    rows = prices.copy()
+    rows["date"] = pd.to_datetime(rows["date"], errors="coerce").dt.date.astype(str)
+    rows = rows[rows["date"] == pd.to_datetime(as_of_date).date().isoformat()]
+    close = pd.to_numeric(rows["close"], errors="coerce")
+    volume = pd.to_numeric(rows["volume"], errors="coerce")
+    usable = close.gt(0) & volume.ge(0)
+    if "unadjusted_close" in rows:
+        raw_close = pd.to_numeric(rows["unadjusted_close"], errors="coerce")
+        usable &= raw_close.gt(0)
+    rows = rows[usable]
+    return set(rows["ticker"].astype(str).str.upper())
 
 
 def publish_dataset(result, public_bucket, private_bucket, r2=None):

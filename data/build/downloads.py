@@ -36,7 +36,7 @@ class ProviderDownloader:
     workers: int = 8
     sec_workers: int = 5
 
-    def prices(self, tickers, start_date, end_date):
+    def prices(self, tickers, start_date, end_date, min_coverage=1.0):
         """Download daily price rows from Massive.
 
         Example:
@@ -54,9 +54,9 @@ class ProviderDownloader:
             rows,
             lambda ticker: self.price_rows(ticker, start_date, end_date),
         )
-        return self.required_table(rows, "prices", 1.0, "no usable price rows")
+        return self.required_table(rows, "prices", min_coverage, "no usable price rows")
 
-    def index_prices(self, tickers, start_date, end_date):
+    def index_prices(self, tickers, start_date, end_date, min_coverage=1.0):
         """Download public index proxy prices from Massive.
 
         Example:
@@ -74,7 +74,7 @@ class ProviderDownloader:
             rows,
             lambda ticker: self.price_rows(ticker, start_date, end_date),
         )
-        return self.required_table(rows, "index prices", 1.0, "no usable index price rows")
+        return self.required_table(rows, "index prices", min_coverage, "no usable index price rows")
 
     def reference(self, tickers, as_of_date, min_coverage=REQUIRED_COVERAGE):
         """Download market reference rows from Massive.
