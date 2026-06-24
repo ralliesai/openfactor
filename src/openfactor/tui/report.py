@@ -22,7 +22,7 @@ HORIZONS = ["1 Day"]
 WINDOWS = [1]
 
 
-def tui_report(portfolio, snapshot):
+def tui_report(portfolio, snapshot, semantic=None):
     """Assemble every panel the terminal UI renders for one portfolio.
 
     Example:
@@ -81,6 +81,7 @@ def tui_report(portfolio, snapshot):
         "track": None,
         "realized": None,
         "realized_windows": {},
+        "semantic": semantic_section(semantic),
     }
     return report
 
@@ -296,3 +297,49 @@ def benchmark_label(universe):
 def find(rows, label):
     """Return the first decomposition row matching a stripped label."""
     return next(row for row in rows if row["label"].strip() == label)
+
+
+def semantic_section(result):
+    """Return semantic residual discovery rows for the terminal, or None.
+
+    Example:
+        an accepted "AI Infrastructure" factor becomes one accepted row; a
+        below-threshold run becomes a skip_reason with no factor rows.
+    """
+    if result is None:
+        return None
+    skipped = result.skipped
+    skip_reason, rejected = None, []
+    if skipped is not None and not skipped.empty:
+        if "name" in skipped.columns:
+            rejected = frame_rows(skipped, ["name", "members", "idio_explained_percent", "reason"])
+        elif "reason" in skipped.columns:
+            skip_reason = str(skipped["reason"].iloc[0])
+    return {
+        "residual_share": float(result.residual_share),
+        "threshold": float(result.threshold),
+        "accepted": frame_rows(
+            result.accepted,
+            ["name", "members", "idio_explained_percent", "risk_reduction_percent", "description"],
+        ),
+        "rejected": rejected,
+        "skip_reason": skip_reason,
+        "skipped_holdings": list(result.skipped_holdings or []),
+    }
+
+
+def frame_rows(frame, columns):
+    """Return selected frame columns as native-typed row dicts.
+
+    Example:
+        frame_rows(accepted, ["name", "members"]) keeps just those fields.
+    """
+    if frame is None or frame.empty:
+        return []
+    present = [column for column in columns if column in frame.columns]
+    return [{key: native(value) for key, value in record.items()} for record in frame[present].to_dict("records")]
+
+
+def native(value):
+    """Return a plain Python scalar from a pandas or numpy value."""
+    return value.item() if hasattr(value, "item") else value

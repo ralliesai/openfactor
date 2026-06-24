@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import pandas as pd
 
@@ -20,7 +21,8 @@ def main():
         raise SystemExit(str(error)) from error
     print(f"loading {args.universe} @ {args.snapshot} (with exposure panel) …")
     snapshot = load_snapshot(args.universe, args.snapshot, include_exposures_panel=True)
-    report = tui_report(portfolio, snapshot)
+    semantic = run_semantic(portfolio, snapshot) if args.semantic else None
+    report = tui_report(portfolio, snapshot, semantic=semantic)
     if args.track:
         from openfactor.tui.track import realized_attribution, realized_stats, realized_windows, update_track
 
@@ -43,6 +45,11 @@ def parse_args():
     parser.add_argument("--portfolio", required=True)
     parser.add_argument("--snapshot", default="latest")
     parser.add_argument("--track", help="Local folder to accumulate detailed daily portfolio history")
+    parser.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Run LLM semantic residual discovery before the terminal (needs OPENAI_API_KEY)",
+    )
     return parser.parse_args()
 
 
@@ -76,6 +83,26 @@ def load_portfolio(path):
         raise ValueError("portfolio gross value must be positive")
     portfolio["allocation"] = portfolio["value"] / gross
     return portfolio[["ticker", "allocation"]]
+
+
+def run_semantic(portfolio, snapshot):
+    """Run semantic residual discovery before the terminal when a key is set.
+
+    Example:
+        with OPENAI_API_KEY set, --semantic prints discovery progress and the
+        terminal shows a semantic section; without it, a clear hint is printed.
+    """
+    if not os.getenv("OPENAI_API_KEY"):
+        print(
+            "semantic discovery skipped: OPENAI_API_KEY is not set.\n"
+            "  export OPENAI_API_KEY=sk-... and re-run with --semantic to enable it."
+        )
+        return None
+
+    from openfactor.llm import discover_semantic_factors
+
+    print("running semantic residual discovery (LLM + web search) — this can take a minute …")
+    return discover_semantic_factors(portfolio, snapshot)
 
 
 if __name__ == "__main__":

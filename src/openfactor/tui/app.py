@@ -21,6 +21,11 @@ def pct1(value):
     return "—" if missing(value) else f"{value * 100:.1f}%"
 
 
+def pct_points(value):
+    """Return a value that is already expressed in percentage points."""
+    return "—" if missing(value) else f"{float(value):.1f}%"
+
+
 def beta_value(value):
     return "—" if missing(value) else f"{value:.2f}"
 
@@ -192,6 +197,13 @@ class OpenFactorApp(App):
                             with Collapsible(title="Idiosyncratic risk — stock-level residuals", collapsed=False):
                                 yield Static(self.idiosyncratic_summary(), classes="legend")
                                 yield DataTable(id="idiosyncratic", cursor_type="none", zebra_stripes=True)
+                            if self.report.get("semantic"):
+                                with Collapsible(title="Semantic residual discovery", collapsed=False):
+                                    yield Static(self.semantic_summary(), classes="legend")
+                                    yield DataTable(id="semantic_accepted", cursor_type="none", zebra_stripes=True)
+                                    if self.report["semantic"].get("rejected"):
+                                        with Collapsible(title="rejected candidates", collapsed=True):
+                                            yield DataTable(id="semantic_rejected", cursor_type="none", zebra_stripes=True)
                         with Vertical(classes="col"):
                             with Collapsible(title="Active return attribution", collapsed=False):
                                 yield Horizontal(*self.horizon_buttons(), id="horizons")
@@ -221,6 +233,8 @@ class OpenFactorApp(App):
         self.populate_idiosyncratic()
         self.populate_idiosyncratic_returns()
         self.populate_returns()
+        if self.report.get("semantic"):
+            self.populate_semantic()
         if self.chat:
             await self.append_chat("OpenFactor", "Ask about this report, beta hedges, tracking error, or attribution.")
 
@@ -360,6 +374,44 @@ class OpenFactorApp(App):
                 name["ticker"], pct1(name["weight"]),
                 pct1(name["idiosyncratic_vol"]), te_cell(name["idiosyncratic_variance_share"]),
             )
+
+    def populate_semantic(self):
+        """Render the semantic residual discovery section."""
+        sem = self.report["semantic"]
+        table = self.query_one("#semantic_accepted", DataTable)
+        table.add_columns("Accepted factor", "Members", "Idio explained", "Risk reduced")
+        accepted = sem.get("accepted") or []
+        if not accepted:
+            table.add_row("—", Text("—", style="dim"), Text("—", style="dim"), Text("—", style="dim"))
+        for row in accepted:
+            table.add_row(
+                str(row.get("name", "—")),
+                str(int(row.get("members") or 0)),
+                pct_points(row.get("idio_explained_percent")),
+                pct_points(row.get("risk_reduction_percent")),
+            )
+        if sem.get("rejected"):
+            rejected = self.query_one("#semantic_rejected", DataTable)
+            rejected.add_columns("Rejected candidate", "Members", "Reason")
+            for row in sem["rejected"]:
+                rejected.add_row(
+                    str(row.get("name", "—")),
+                    str(int(row.get("members") or 0)),
+                    str(row.get("reason") or "—"),
+                )
+
+    def semantic_summary(self):
+        """Return the semantic section legend line."""
+        sem = self.report["semantic"]
+        share, threshold = pct1(sem["residual_share"]), pct1(sem["threshold"])
+        if sem.get("skip_reason"):
+            return (f"Idiosyncratic residual share {share} vs threshold {threshold} — "
+                    f"{sem['skip_reason'].replace('_', ' ')}; no factors discovered.")
+        line = (f"Idiosyncratic residual share {share} vs threshold {threshold} · "
+                f"{len(sem.get('accepted') or [])} accepted · {len(sem.get('rejected') or [])} rejected")
+        if sem.get("skipped_holdings"):
+            line += f"\n[dim]no residual history: {', '.join(sem['skipped_holdings'])}[/]"
+        return line
 
     def populate_idiosyncratic_returns(self):
         table = self.query_one("#idiosyncratic_returns", DataTable)

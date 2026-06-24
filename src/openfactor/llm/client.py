@@ -57,13 +57,13 @@ class SemanticLLMClient:
     """Agents SDK JSON client for semantic discovery.
 
     Example:
-        client = SemanticLLMClient(model="gpt-5.4")
+        client = SemanticLLMClient(model="gpt-5.5")
         client.complete_json("Return JSON.", {"ticker": "NVDA"})
         returns a Python dict parsed from the model response.
     """
 
     def __init__(self, model=None, api_key=None, timeout=None):
-        self.model = model or os.getenv("OPENFACTOR_SEMANTIC_MODEL", "gpt-5.4")
+        self.model = model or os.getenv("OPENFACTOR_SEMANTIC_MODEL", "gpt-5.5")
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.timeout = timeout or float(os.getenv("OPENFACTOR_SEMANTIC_TIMEOUT", "300"))
 
